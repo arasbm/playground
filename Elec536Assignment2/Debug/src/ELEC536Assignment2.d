@@ -1,5 +1,5 @@
-src/ELEC536Assignment1.d src/ELEC536Assignment1.o: \
- ../src/ELEC536Assignment1.cpp /usr/local/include/opencv/highgui.h \
+src/ELEC536Assignment2.d src/ELEC536Assignment2.o: \
+ ../src/ELEC536Assignment2.cpp /usr/local/include/opencv/highgui.h \
  /usr/local/include/opencv/cxcore.h /usr/local/include/opencv/cxtypes.h \
  /usr/local/include/opencv/cxerror.h /usr/local/include/opencv/cvver.h \
  /usr/local/include/opencv/cxcore.hpp /usr/local/include/opencv/cxmisc.h \

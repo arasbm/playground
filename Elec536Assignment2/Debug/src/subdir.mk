@@ -4,13 +4,13 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 CPP_SRCS += \
-../src/ELEC536Assignment1.cpp 
+../src/ELEC536Assignment2.cpp 
 
 OBJS += \
-./src/ELEC536Assignment1.o 
+./src/ELEC536Assignment2.o 
 
 CPP_DEPS += \
-./src/ELEC536Assignment1.d 
+./src/ELEC536Assignment2.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes
