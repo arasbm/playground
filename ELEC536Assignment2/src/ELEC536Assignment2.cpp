@@ -19,12 +19,18 @@ using namespace cv;
 
 int main(int argc, char* argv[]) {
 	cout << "Starting ELEC536 Assignment 2 Application" << endl;
-	cvNamedWindow( "ELEC536_Assignment1", CV_WINDOW_AUTOSIZE );
+	cvNamedWindow( "ELEC536_Assignment2", CV_WINDOW_AUTOSIZE );
+
+	Mat img1, img2, result;
 
 	char key = 'a';
 	while (key != 'q') {
 		switch (key) {
 			case 'a':
+				img1 = imread("img/stuff.pgm");
+				img2 = imread("img/stufmin1.pgm");
+				result = (img1 - img2) + (img2 - img1);
+				imshow("ELEC536_Assignment2", result);
 				break;
 
 			case 'b':
