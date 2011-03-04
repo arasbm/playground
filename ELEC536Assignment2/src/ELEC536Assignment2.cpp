@@ -38,6 +38,7 @@ int main(int argc, char* argv[]) {
 	Mat img4 = imread("img/testimagemin1.pgm", CV_LOAD_IMAGE_GRAYSCALE);
 	Mat img5 = imread("img/things.pgm", CV_LOAD_IMAGE_GRAYSCALE);
 	Mat result;
+	Mat roiImg;
 
 	int threshold_value = 30; //global threshold which can be changed using up and down arrow keys
 
@@ -63,7 +64,9 @@ int main(int argc, char* argv[]) {
 				break;
 
 			case 'c':
-				cout << "Question 1 part c: median filtering" <<endl;
+				cout << "Question 1 part c: Adjustable 2D median filtering" <<endl;
+				roiImg = Mat(result, Rect(100, 100, 200, 200));
+				imshow("ELEC536_Assignment2", roiImg);
 				//TODO
 				break;
 
@@ -86,12 +89,13 @@ int main(int argc, char* argv[]) {
 
 			default:
 				cout << "The following keys are recognized:" << endl;
-				cout << " _______________________ " << endl;
-				cout << "| Key\t | question\t|" << endl;
+				cout << " _______________ " << endl;
+				cout << "| Key\t | Qst.\t|" << endl;
 				cout << "| a \t | 1a \t|" << endl;
 				cout << "| b \t | 1b \t|" << endl;
 				cout << "| c \t | 1c \t|" << endl;
 				cout << "| d \t | 2a \t|" << endl;
+
 		}
 		key = cvWaitKey(0);
 		cout << "KEY CODE: " << (int)key << endl;
@@ -157,10 +161,10 @@ void automaticThreshold(Mat* result) {
 }
 
 /**
- * Q1c. My implementation of a simple 1D median filtering to remove noise
- * the window looks like this: [][x][]
+ * Q1c. My implementation of a 2D median filtering to remove noise
+ *
  * */
-void medianFilter1D(Mat* result) {
+void medianFilter2D(Mat* result, int size) {
 
 }
 
