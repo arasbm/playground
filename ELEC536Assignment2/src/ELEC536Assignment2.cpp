@@ -20,8 +20,8 @@ using namespace cv;
 void findMissingObject(Mat* img1, Mat* img2, Mat* result);
 void manualThreshold(Mat* result, int threshold);
 void automaticThreshold(Mat* result);
-void medianFilter1D(Mat* result);
-void connectedComponentLabeling(Mat* result);
+void medianFilter2D(Mat* src, Mat* dst, int size);
+void connectedComponentLabeling(Mat* src, Mat* dst);
 
 
 //Define some colors for drawing and writing on image
@@ -37,8 +37,9 @@ int main(int argc, char* argv[]) {
 	Mat img3 = imread("img/testimage.pgm", CV_LOAD_IMAGE_GRAYSCALE);
 	Mat img4 = imread("img/testimagemin1.pgm", CV_LOAD_IMAGE_GRAYSCALE);
 	Mat img5 = imread("img/things.pgm", CV_LOAD_IMAGE_GRAYSCALE);
-	Mat result;
-	Mat roiImg;
+	Mat result; //working image for most parts
+	Mat tmp;
+	Mat colorTmp; //color image for connected component labeling
 
 	int threshold_value = 30; //global threshold which can be changed using up and down arrow keys
 
@@ -65,14 +66,31 @@ int main(int argc, char* argv[]) {
 
 			case 'c':
 				cout << "Question 1 part c: Adjustable 2D median filtering" <<endl;
-				roiImg = Mat(result, Rect(100, 100, 200, 200));
-				imshow("ELEC536_Assignment2", roiImg);
-				//TODO
+				tmp = result.clone();
+				medianFilter2D(&tmp, &result, 5);
+				imshow("ELEC536_Assignment2", result);
 				break;
 
 			case 'd':
 				cout << "Question 2 part a: Connected Component Labeling" <<endl;
-				//TODO
+				//cvtColor(result, colorTmp, CV_BGR2YCrCb);
+				connectedComponentLabeling(&result, &tmp);
+				imshow("ELEC536_Assignment2", tmp);
+				break;
+
+			case '1':
+				result = img1.clone();
+				imshow("ELEC536_Assignment2", result);
+				break;
+
+			case '2':
+				result = img2.clone();
+				imshow("ELEC536_Assignment2", result);
+				break;
+
+			case '3':
+				result = img3.clone();
+				imshow("ELEC536_Assignment2", result);
 				break;
 
 			case 82:
@@ -91,11 +109,12 @@ int main(int argc, char* argv[]) {
 				cout << "The following keys are recognized:" << endl;
 				cout << " _______________ " << endl;
 				cout << "| Key\t | Qst.\t|" << endl;
-				cout << "| a \t | 1a \t|" << endl;
-				cout << "| b \t | 1b \t|" << endl;
-				cout << "| c \t | 1c \t|" << endl;
-				cout << "| d \t | 2a \t|" << endl;
+				cout << "| a  \t | 1a  \t|" << endl;
+				cout << "| b  \t | 1b  \t|" << endl;
+				cout << "| c  \t | 1c  \t|" << endl;
+				cout << "| d  \t | 2a  \t|" << endl;
 
+				cout << "* Key 1 to 5 is used to load images 1 to 5" << endl;
 		}
 		key = cvWaitKey(0);
 		cout << "KEY CODE: " << (int)key << endl;
@@ -154,7 +173,7 @@ void automaticThreshold(Mat* result) {
 		cout << estimated_threshold << "]" << endl;
 		iter_count++;
 	}
-	cout << "Selected threshold: [[ " << selected_threshold << " ]]" <<endl;
+	cout << "Selected threshold: [[ " << selected_threshold << " ]]" << endl;
 
 	//convert the image to binary using this threshold
 	manualThreshold(result, selected_threshold);
@@ -162,15 +181,56 @@ void automaticThreshold(Mat* result) {
 
 /**
  * Q1c. My implementation of a 2D median filtering to remove noise
- *
+ * it uses a square window which has edges of size "size"
+ * Precondition: size > 1 and it is an odd number
  * */
-void medianFilter2D(Mat* result, int size) {
+void medianFilter2D(Mat* src, Mat* dst, int size) {
+	cout << "Applying an square median filter of size " << size << endl;
+	int border = round(size / 2);
+	Rect rect = Rect(0, 0, size, size);
+	Mat window;
+	Mat sorted_window;
 
+	//Move the window one pixel at a time through the image and set pixel value
+	// in dst to the median of values in current window
+	for(int i = border; i < src->rows - border; i++) {
+		for(int j = border; j < src->cols - border; j++) {
+			window = Mat(*src, rect);
+
+			//find median value in this window and set as current pixel value in dst
+			cv::sort(window, sorted_window, CV_SORT_EVERY_ROW);
+			cv::sort(sorted_window, sorted_window, CV_SORT_EVERY_COLUMN);
+			int median = sorted_window.at<uchar>(border, border);
+			dst->at<uchar>(i,j) = median;
+
+			rect.x += 1; //shift window to right
+		}
+		//Move window down one row and back to position 0
+		rect.y += 1;
+		rect.x = 0;
+	}
 }
 
 /**
  * Q2a. Connected Component Labeling
+ * This function
+ * I use 4-connectivity and a two pass algorithm.
+ * Precondition: Input is a binary image.
+ * src is a binary image. dst is a color image
  * */
-void connectedComponentLabeling(Mat* result) {
+void connectedComponentLabeling(Mat* src, Mat* dst) {
+	//Equivalence class
+
+	//First Pass
+	for(int i = 0; i < src->rows; i++) {
+			uchar* srcRowPtr = src->ptr<uchar>(i);
+			uchar* dstRowPtr =
+			for(int j=0; j < result->cols; j++) {
+				rowPtr[j] =
+			}
+		}
+	//Second Pass
+
+
 
 }
