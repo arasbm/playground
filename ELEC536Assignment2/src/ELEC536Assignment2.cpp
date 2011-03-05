@@ -268,14 +268,18 @@ void connectedComponentLabeling(Mat* src, Mat* dst) {
 void opencvConnectedComponent(Mat* src, Mat* dst) {
 
 	vector<vector<cv::Point> > contours;
-	//vector<Vec4i> hierarchy;
+	vector<Vec4i> hiearchy;
 
 	//threshold(*src, *src, threshold_value, 255, THRESH_BINARY );
-	findContours(*src, contours, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
+	findContours(*src, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 
-	Scalar color = CV_RGB(rand()&255, rand()&255, rand()&255 );
-	drawContours(*dst, contours, -1, color, CV_FILLED);
-
+	int index = 0;
+	int _levels = 0;
+	for (; index >= 0; index = hiearchy[index][0]) {
+		Scalar color = CV_RGB(rand()&255, rand()&255, rand()&255 );
+		drawContours(*dst, contours, index, color, 3, CV_AA, hiearchy, std::abs(index));
+		//drawContours(*dst, contours, index, color, CV_FILLED, 8, hiearchy);
+	}
 }
 
 
