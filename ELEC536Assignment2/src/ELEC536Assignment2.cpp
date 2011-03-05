@@ -277,7 +277,7 @@ void opencvConnectedComponent(Mat* src, Mat* dst) {
 	int _levels = 0;
 	for (; index >= 0; index = hiearchy[index][0]) {
 		Scalar color = CV_RGB(rand()&255, rand()&255, rand()&255 );
-		drawContours(*dst, contours, index, color, 3, CV_AA, hiearchy, std::abs(index));
+		drawContours(*dst, contours, index, color, 3, CV_FILLED, hiearchy, std::abs(index));
 		//drawContours(*dst, contours, index, color, CV_FILLED, 8, hiearchy);
 	}
 }
