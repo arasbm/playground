@@ -224,10 +224,10 @@ void connectedComponentLabeling(Mat* src, Mat* dst) {
 	//First Pass
 	for(int i = 0; i < src->rows; i++) {
 			uchar* srcRowPtr = src->ptr<uchar>(i);
-			uchar* dstRowPtr =
-			for(int j=0; j < result->cols; j++) {
-				rowPtr[j] =
-			}
+//			uchar* dstRowPtr =
+//			for(int j=0; j < result->cols; j++) {
+//				rowPtr[j] =
+//			}
 		}
 	//Second Pass
 
