@@ -22,11 +22,14 @@ void manualThreshold(Mat* result, int threshold);
 void automaticThreshold(Mat* result);
 void medianFilter2D(Mat* src, Mat* dst, int size);
 void connectedComponentLabeling(Mat* src, Mat* dst);
+void opencvConnectedComponent(Mat* src, Mat* dst);
 
 
 //Define some colors for drawing and writing on image
 CvScalar GREEN = cvScalar(20,150,20);
 CvScalar RED = cvScalar(150,20,20);
+
+int threshold_value = 30; //global threshold which can be changed using up and down arrow keys
 
 int main(int argc, char* argv[]) {
 	cout << "Starting ELEC536 Assignment 2 Application" << endl;
@@ -41,40 +44,50 @@ int main(int argc, char* argv[]) {
 	Mat tmp;
 	Mat colorTmp; //color image for connected component labeling
 
-	int threshold_value = 30; //global threshold which can be changed using up and down arrow keys
 
-	char key = 'a';
+
+	char key = '0';
 	while (key != 'q') {
 		switch (key) {
-			case 'a':
-				cout << "Question 1 part a: subtract background and use manual threshold" <<endl;
+			case '0':
+				cout << "subtract background for Question 1 part a and b" << endl;
 				result = (img1 - img2) + (img2 - img1);
-				putText(result, "Differencing the two images.", cvPoint(30,30), FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(200,200,250), 1, CV_AA);
 				imshow("ELEC536_Assignment2", result);
-				cvWaitKey();
+				break;
+
+			case 'a':
+				cout << "using manual threshold" <<endl;
+				//putText(result, "Differencing the two images.", cvPoint(30,30), FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(200,200,250), 1, CV_AA);
 				manualThreshold(&result, threshold_value);
 				imshow("ELEC536_Assignment2", result);
-				cvWaitKey();
+				//cvWaitKey();
 				break;
 
 			case 'b':
 				cout << "Question 1 part b: Automatic threshold selection" <<endl;
-				result = (img1 - img2) + (img2 - img1);
+				//result = (img1 - img2) + (img2 - img1);
 				automaticThreshold(&result);
 				imshow("ELEC536_Assignment2", result);
 				break;
 
 			case 'c':
-				cout << "Question 1 part c: Adjustable 2D median filtering" <<endl;
+				cout << "Question 1 part c: Adjustable 2D median filtering" << endl;
 				tmp = result.clone();
 				medianFilter2D(&tmp, &result, 5);
 				imshow("ELEC536_Assignment2", result);
 				break;
 
 			case 'd':
-				cout << "Question 2 part a: Connected Component Labeling" <<endl;
-				//cvtColor(result, colorTmp, CV_BGR2YCrCb);
+				cout << "Question 2 part a: My Connected Component Labeling" << endl;
+				tmp = cvCreateMat(result.rows, result.cols, CV_8UC3 ); //initialize a colour image
 				connectedComponentLabeling(&result, &tmp);
+				imshow("ELEC536_Assignment2", tmp);
+				break;
+
+			case 'e':
+				cout << "Question 2 part a implemented with openCV contour function" << endl;
+				tmp = cvCreateMat(result.rows, result.cols, CV_8UC3 ); //initialize a colour image
+				opencvConnectedComponent(&result, &tmp);
 				imshow("ELEC536_Assignment2", tmp);
 				break;
 
@@ -93,6 +106,16 @@ int main(int argc, char* argv[]) {
 				imshow("ELEC536_Assignment2", result);
 				break;
 
+			case '4':
+				result = img4.clone();
+				imshow("ELEC536_Assignment2", result);
+				break;
+
+			case '5':
+				result = img5.clone();
+				imshow("ELEC536_Assignment2", result);
+				break;
+
 			case 82:
 				//Up arrow key
 				threshold_value++;
@@ -107,12 +130,14 @@ int main(int argc, char* argv[]) {
 
 			default:
 				cout << "The following keys are recognized:" << endl;
-				cout << " _______________ " << endl;
-				cout << "| Key\t | Qst.\t|" << endl;
-				cout << "| a  \t | 1a  \t|" << endl;
-				cout << "| b  \t | 1b  \t|" << endl;
-				cout << "| c  \t | 1c  \t|" << endl;
-				cout << "| d  \t | 2a  \t|" << endl;
+				cout << " __________________ " << endl;
+				cout << "| Key\t | Question" << endl;
+				cout << "| a  \t | 1a  " << endl;
+				cout << "| b  \t | 1b  " << endl;
+				cout << "| c  \t | 1c  " << endl;
+				cout << "| d  \t | 2a my own implementation of connected component " << endl;
+				cout << "| e  \t | 2a implementation using OpenCV findContour " << endl;
+
 
 				cout << "* Key 1 to 5 is used to load images 1 to 5" << endl;
 		}
@@ -175,8 +200,11 @@ void automaticThreshold(Mat* result) {
 	}
 	cout << "Selected threshold: [[ " << selected_threshold << " ]]" << endl;
 
-	//convert the image to binary using this threshold
-	manualThreshold(result, selected_threshold);
+	threshold_value = selected_threshold;
+
+	//convert the image to binary using this selected threshold value
+	//manualThreshold(result, selected_threshold);
+	threshold(*result, *result, threshold_value, 255, THRESH_BINARY );
 }
 
 /**
@@ -222,15 +250,32 @@ void connectedComponentLabeling(Mat* src, Mat* dst) {
 	//Equivalence class
 
 	//First Pass
-	for(int i = 0; i < src->rows; i++) {
-			uchar* srcRowPtr = src->ptr<uchar>(i);
+//	for(int i = 0; i < src->rows; i++) {
+//			uchar* srcRowPtr = src->ptr<uchar>(i);
 //			uchar* dstRowPtr =
 //			for(int j=0; j < result->cols; j++) {
 //				rowPtr[j] =
 //			}
-		}
+//		}
 	//Second Pass
 
+}
 
+/**
+ * An implementation of connected components labeling using
+ * opencv findContour function
+ * */
+void opencvConnectedComponent(Mat* src, Mat* dst) {
+
+	vector<vector<cv::Point> > contours;
+	//vector<Vec4i> hierarchy;
+
+	//threshold(*src, *src, threshold_value, 255, THRESH_BINARY );
+	findContours(*src, contours, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
+
+	Scalar color = CV_RGB(rand()&255, rand()&255, rand()&255 );
+	drawContours(*dst, contours, -1, color, CV_FILLED);
 
 }
+
+
