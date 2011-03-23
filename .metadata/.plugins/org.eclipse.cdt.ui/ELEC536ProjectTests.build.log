@@ -2,6 +2,15 @@
 **** Build of configuration Debug for project ELEC536ProjectTests ****
 
 make all 
-make: Nothing to be done for `all'.
-
-**** Build Finished ****
+Building file: ../src/ELEC536ProjectTests.cpp
+Invoking: GCC C++ Compiler
+g++ -I/usr/local/include/opencv -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"src/ELEC536ProjectTests.d" -MT"src/ELEC536ProjectTests.d" -o"src/ELEC536ProjectTests.o" "../src/ELEC536ProjectTests.cpp"
+../src/ELEC536ProjectTests.cpp: In function ‘void opencvConnectedComponent(cv::Mat*, cv::Mat*)’:
+../src/ELEC536ProjectTests.cpp:222: warning: unused variable ‘_levels’
+Finished building: ../src/ELEC536ProjectTests.cpp
+ 
+Building target: ELEC536ProjectTests
+Invoking: GCC C++ Linker
+g++ -L/usr/include/opencv -o"ELEC536ProjectTests"  ./src/ELEC536ProjectTests.o   -lcv -lcvaux -lhighgui -lcxcore -lml
+Finished building target: ELEC536ProjectTests
+ 

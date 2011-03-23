@@ -79,9 +79,7 @@ int main(int argc, char* argv[]) {
 				break;
 
 			case 'd':
-				cout << "Question 2 part a: My Connected Component Labeling" << endl;
-				tmp = cvCreateMat(result.rows, result.cols, CV_8UC3 ); //initialize a colour image
-				connectedComponentLabeling(&result, &tmp);
+
 				imshow("ELEC536_Project", tmp);
 				break;
 
@@ -139,14 +137,6 @@ int main(int argc, char* argv[]) {
 
 			default:
 				cout << "The following keys are recognized:" << endl;
-				cout << " __________________ " << endl;
-				cout << "| Key\t | Question" << endl;
-				cout << "| a  \t | 1a  " << endl;
-				cout << "| b  \t | 1b  " << endl;
-				cout << "| c  \t | 1c  " << endl;
-				cout << "| d  \t | 2a my own implementation of connected component " << endl;
-				cout << "| e  \t | 2a implementation using OpenCV findContour " << endl;
-
 
 				cout << "* Key 1 to 5 is used to load images 1 to 5" << endl;
 		}
@@ -216,29 +206,6 @@ void automaticThreshold(Mat* result) {
 	threshold(*result, *result, lower_threshold, 255, THRESH_BINARY );
 }
 
-
-/**
- * Q2a. Connected Component Labeling
- * This function
- * I use 4-connectivity and a two pass algorithm.
- * Precondition: Input is a binary image.
- * src is a binary image. dst is a color image
- * */
-void connectedComponentLabeling(Mat* src, Mat* dst) {
-	//Equivalence class
-
-	//First Pass
-//	for(int i = 0; i < src->rows; i++) {
-//			uchar* srcRowPtr = src->ptr<uchar>(i);
-//			uchar* dstRowPtr =
-//			for(int j=0; j < result->cols; j++) {
-//				rowPtr[j] =
-//			}
-//		}
-	//Second Pass
-
-}
-
 /**
  * An implementation of connected components labeling using
  * opencv findContour function
@@ -283,8 +250,12 @@ void depthFromDiffusion(Mat* src, Mat* dst, int size) {
 				if (src->at<uchar>(i,j) < lower_threshold) {
 					dst->at<uchar>(i,j) = 0;
 				} else {
-					dst->at<uchar>(i,j) = (stdDev.val[0]/(pow(size, 2))) * 255;
-					//+ src->at<uchar>(i,j) / 4;
+					//window is eithr blury or very smooth
+					if (src->at<uchar>(i,j) > upper_threshold) {
+						dst->at<uchar>(i,j) = src->at<uchar>(i,j);
+					} else {
+						dst->at<uchar>(i,j) = (stdDev.val[0] / pow(size, 2)) * 191 + src->at<uchar>(i,j) / 4;
+					}
 				}
 
 				rect.x += 1; //shift window to right
@@ -293,4 +264,21 @@ void depthFromDiffusion(Mat* src, Mat* dst, int size) {
 			rect.y += 1;
 			rect.x = 0;
 		}
+
+
+		//Find goodFeaturesToTrack
+		vector<Point2f> corners;
+		int maxCorners = 12;
+		double qualityLevel = 0.01;
+		double minDistance = 24;
+		int blockSize = 30;
+		bool useHarrisDetector = false; //its either harris or cornerMinEigenVal
+		goodFeaturesToTrack(*dst, corners, maxCorners, qualityLevel, minDistance, *dst, blockSize, useHarrisDetector);
+
+		//Draw squares where features are detected
+		for(int i = 0; i < maxCorners; i++) {
+			rectangle(*dst, Point(corners[i].x - blockSize/2, corners[i].y - blockSize/2),
+					Point(corners[i].x + blockSize/2, corners[i].y + blockSize/2),Scalar(200,2000,200));
+		}
+
 }
