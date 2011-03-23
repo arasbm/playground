@@ -12,41 +12,54 @@
 #include "ml.h"
 #include "cxtypes.h"
 
+//Flycapture SDK
+#include "FlyCapture2.h"
+
 #include <cmath>
 
 using namespace std;
 using namespace cv;
+using namespace FlyCapture2;
 
-void findMissingObject(Mat* img1, Mat* img2, Mat* result);
 void manualThreshold(Mat* result, int threshold);
 void automaticThreshold(Mat* result);
-void connectedComponentLabeling(Mat* src, Mat* dst);
 void opencvConnectedComponent(Mat* src, Mat* dst);
 void depthFromDiffusion(Mat* src, Mat* dst, int size);
+void initiateCamera();
+void startVideo();
+Mat grabImage();
+IplImage* convertImageToOpenCV(Image* pImage);
 
-
-//Define some colors for drawing and writing on image
-CvScalar GREEN = cvScalar(20,150,20);
-CvScalar RED = cvScalar(150,20,20);
-
+//Global Settings
 int lower_threshold = 40; //global threshold which can be changed using up and down arrow keys
 int upper_threshold = 200;
+bool save_video = false;
+bool display_video = true;
+bool subtract_background = false;
+bool use_pgr_camera = true;
+
+//PGR variables
+Camera pgrCam;
+PGRGuid guid;
+
+//OpenCV variables
+CvPoint mouseLocation;
 
 int main(int argc, char* argv[]) {
 	cout << "Starting ELEC536 Assignment 2 Application" << endl;
 	cvNamedWindow( "ELEC536_Project", CV_WINDOW_AUTOSIZE );
 
 	Mat img1 = imread("img/1.pgm", CV_LOAD_IMAGE_GRAYSCALE);
-		Mat img2 = imread("img/2.pgm", CV_LOAD_IMAGE_GRAYSCALE);
-		Mat img3 = imread("img/3.pgm", CV_LOAD_IMAGE_GRAYSCALE);
-		Mat img4 = imread("img/4.pgm", CV_LOAD_IMAGE_GRAYSCALE);
-		Mat img5 = imread("img/5.pgm", CV_LOAD_IMAGE_GRAYSCALE);
+	Mat img2 = imread("img/2.pgm", CV_LOAD_IMAGE_GRAYSCALE);
+	Mat img3 = imread("img/3.pgm", CV_LOAD_IMAGE_GRAYSCALE);
+	Mat img4 = imread("img/4.pgm", CV_LOAD_IMAGE_GRAYSCALE);
+	Mat img5 = imread("img/5.pgm", CV_LOAD_IMAGE_GRAYSCALE);
 	Mat result; //working image for most parts
 	Mat tmp;
 	Mat colorTmp; //color image for connected component labeling
 
-
-
+	startVideo();
+	/*
 	char key = '0';
 	while (key != 'q') {
 		switch (key) {
@@ -79,7 +92,6 @@ int main(int argc, char* argv[]) {
 				break;
 
 			case 'd':
-
 				imshow("ELEC536_Project", tmp);
 				break;
 
@@ -96,6 +108,10 @@ int main(int argc, char* argv[]) {
 				tmp = result.clone();
 				depthFromDiffusion(&result, &tmp, 5);
 				imshow("ELEC536_Project", tmp);
+				break;
+
+			case 's':
+				startVideo();
 				break;
 
 			case '1':
@@ -137,12 +153,14 @@ int main(int argc, char* argv[]) {
 
 			default:
 				cout << "The following keys are recognized:" << endl;
-
 				cout << "* Key 1 to 5 is used to load images 1 to 5" << endl;
+				break;
 		}
 		key = cvWaitKey(0);
 		cout << "KEY CODE: " << (int)key << endl;
 	}
+
+	*/
 
 	//cleanup and leave
 	//releaseMat( &result );
@@ -219,7 +237,6 @@ void opencvConnectedComponent(Mat* src, Mat* dst) {
 	findContours(*src, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 
 	int index = 0;
-	int _levels = 0;
 	for (; index >= 0; index = hiearchy[index][0]) {
 		Scalar color = CV_RGB(rand()&255, rand()&255, rand()&255 );
 		drawContours(*dst, contours, index, color, 3, CV_FILLED, hiearchy, std::abs(index));
@@ -231,13 +248,10 @@ void opencvConnectedComponent(Mat* src, Mat* dst) {
  * Precondition: size > 1 and it is an odd number
  */
 void depthFromDiffusion(Mat* src, Mat* dst, int size) {
-	cout << "Calculating depth from diffusion with window of size " << size << endl;
 		int border = round(size / 2);
 		Rect rect = Rect(0, 0, size, size);
 		Mat window;
 		//Mat sorted_window;
-
-		//smooth the image to get sid of salt and pepper noise
 
 		//Move the window one pixel at a time through the image and set pixel value
 		// in dst to the standard deviation of values in current window
@@ -265,20 +279,262 @@ void depthFromDiffusion(Mat* src, Mat* dst, int size) {
 			rect.x = 0;
 		}
 
+}
 
-		//Find goodFeaturesToTrack
-		vector<Point2f> corners;
-		int maxCorners = 12;
-		double qualityLevel = 0.01;
-		double minDistance = 24;
-		int blockSize = 30;
-		bool useHarrisDetector = false; //its either harris or cornerMinEigenVal
-		goodFeaturesToTrack(*dst, corners, maxCorners, qualityLevel, minDistance, *dst, blockSize, useHarrisDetector);
+
+
+void initiateCamera(){
+	//Starts the camera.
+	BusManager busManager;
+	unsigned int totalCameras;
+	busManager.GetNumOfCameras(&totalCameras);
+	printf("Found %d cameras on the bus.\n",totalCameras);
+	busManager.GetCameraFromIndex(0, &guid);
+	Error pgError;
+	pgError = pgrCam.Connect(&guid);
+	if (pgError != PGRERROR_OK){
+		printf("Error in starting the camera.\n");
+		use_pgr_camera = false;
+	}
+	pgrCam.StartCapture();
+	if (pgError != PGRERROR_OK){
+		printf("Error in starting the camera capture.\n");
+		use_pgr_camera = false;
+	}
+	cout << "pgr camera initialized." << endl;
+}
+
+void startVideo(){
+	const char *videoFilename;
+	CvCapture *video = NULL;
+	CvSize videoSize;
+	double fps = 30;
+	int totalFrames = 0;
+
+	//goodFeaturesToTrack values
+	vector<Point2f> corners;
+	int maxCorners = 10;
+	double qualityLevel = 0.1;
+	double minDistance = 24;
+	int blockSize = 30;
+	bool useHarrisDetector = false; //its either harris or cornerMinEigenVal
+
+	//Try the camera
+	initiateCamera();
+
+	//If camera is disconnected fall back on video
+	if(!use_pgr_camera){
+		videoFilename = "grab_release_01.avi";
+		video = cvCreateFileCapture(videoFilename);
+		if(!video){
+			printf("Cannot find video file.\n");
+			return;
+			//system("pause");
+		}
+		if(subtract_background){
+			//getBackground(video);
+		}
+		cvSetCaptureProperty(video,CV_CAP_PROP_POS_FRAMES,0);
+		videoSize = cvSize((int) cvGetCaptureProperty(video,CV_CAP_PROP_FRAME_WIDTH),(int) cvGetCaptureProperty(video,CV_CAP_PROP_FRAME_HEIGHT));
+		fps = cvGetCaptureProperty(video, CV_CAP_PROP_FPS);
+		totalFrames = (int) cvGetCaptureProperty(video,CV_CAP_PROP_FRAME_COUNT);
+	}
+
+	CvVideoWriter *writer;
+	if(save_video){
+		writer = cvCreateVideoWriter("rawOutput.avi",-1,fps,videoSize);
+		if(!writer){
+			printf("Failed to initiate video writer, fps is %f, video size is %d,%d",fps,videoSize.width,videoSize.height);
+		}
+	}
+
+	mouseLocation = cvPoint(0,0);
+
+	int key;
+	Mat previousFrame;
+	Mat currentFrame;
+	Mat tmp;
+
+	if(!video && !use_pgr_camera){
+		cout << "nothing to show." << endl;
+	}
+
+	for(int frame = 0; frame < totalFrames || use_pgr_camera; frame++) {
+		if(use_pgr_camera){
+			currentFrame = grabImage();
+		} else{
+			//TODO: videoFrame = cvQueryFrame(video);
+			//cropImage(videoFrame);
+		}
+
+		key = cvWaitKey(10);
+
+		switch(key) {
+			case '1':
+				break;
+			case '2':
+				break;
+			default:
+				break;
+		}
+
+		//previousFrame = currentFrame.clone();
+		medianBlur(currentFrame, currentFrame, 5);
+		//currentFrame = currentFrame > 30;
+		tmp = currentFrame.clone();
+		//depthFromDiffusion(&tmp, &currentFrame, 3);
+		goodFeaturesToTrack( currentFrame, corners, maxCorners, qualityLevel, minDistance, currentFrame, blockSize, useHarrisDetector);
 
 		//Draw squares where features are detected
 		for(int i = 0; i < maxCorners; i++) {
-			rectangle(*dst, Point(corners[i].x - blockSize/2, corners[i].y - blockSize/2),
-					Point(corners[i].x + blockSize/2, corners[i].y + blockSize/2),Scalar(200,2000,200));
+			rectangle(currentFrame, Point(corners[i].x - blockSize/2, corners[i].y - blockSize/2),
+					Point(corners[i].x + blockSize/2, corners[i].y + blockSize/2),Scalar(200,200,200));
 		}
 
+		if (display_video) {
+			imshow("ELEC536_Project", currentFrame);
+		}
+	}
+
+	if(!use_pgr_camera){
+		cvReleaseCapture(&video);
+	} else {
+		pgrCam.StopCapture();
+	}
+}
+
+Mat grabImage(){
+	Error pgError;
+	Image rawImage;
+	pgError = pgrCam.RetrieveBuffer(&rawImage);
+	if (pgError != PGRERROR_OK){
+		cout << "Error in grabbing frame." << endl;
+	}
+	Mat image(convertImageToOpenCV(&rawImage));
+	return image;
+}
+
+IplImage* convertImageToOpenCV(Image* pImage){
+	IplImage* cvImage = NULL;
+	bool bColor = true;
+	CvSize mySize;
+	mySize.height = pImage->GetRows();
+	mySize.width = pImage->GetCols();
+	//cout << "Pixel format is " << pImage->GetPixelFormat() << endl;
+
+	switch ( pImage->GetPixelFormat() )
+	{
+		case PIXEL_FORMAT_MONO8:
+			cvImage = cvCreateImageHeader(mySize, 8, 1 );
+			cvImage->depth = IPL_DEPTH_8U;
+			cvImage->nChannels = 1;
+			bColor = false;
+			break;
+		case PIXEL_FORMAT_411YUV8:
+			cvImage = cvCreateImageHeader(mySize, 8, 3 );
+			cvImage->depth = IPL_DEPTH_8U;
+			cvImage->nChannels = 3;
+			break;
+		case PIXEL_FORMAT_422YUV8:
+			cvImage = cvCreateImageHeader(mySize, 8, 3 );
+			cvImage->depth = IPL_DEPTH_8U;
+			cvImage->nChannels = 3;
+			//printf("Inside switch.  Depth is %d\n",cvImage->depth);
+			break;
+		case PIXEL_FORMAT_444YUV8:
+			cvImage = cvCreateImageHeader(mySize, 8, 3 );
+			cvImage->depth = IPL_DEPTH_8U;
+			cvImage->nChannels = 3;
+			break;
+		case PIXEL_FORMAT_RGB8:
+			cvImage = cvCreateImageHeader(mySize, 8, 3 );
+			cvImage->depth = IPL_DEPTH_8U;
+			cvImage->nChannels = 3;
+			break;
+		case PIXEL_FORMAT_MONO16:
+			cvImage = cvCreateImageHeader(mySize, 16, 1 );
+			cvImage->depth = IPL_DEPTH_16U;
+			cvImage->nChannels = 1;
+			bColor = false;
+			break;
+		case PIXEL_FORMAT_RGB16:
+			cvImage = cvCreateImageHeader(mySize, 16, 3 );
+			cvImage->depth = IPL_DEPTH_16U;
+			cvImage->nChannels = 3;
+			break;
+		case PIXEL_FORMAT_S_MONO16:
+			cvImage = cvCreateImageHeader(mySize, 16, 1 );
+			cvImage->depth = IPL_DEPTH_16U;
+			cvImage->nChannels = 1;
+			bColor = false;
+			break;
+		case PIXEL_FORMAT_S_RGB16:
+			cvImage = cvCreateImageHeader(mySize, 16, 3 );
+			cvImage->depth = IPL_DEPTH_16U;
+			cvImage->nChannels = 3;
+			break;
+		case PIXEL_FORMAT_RAW8:
+			cvImage = cvCreateImageHeader(mySize, 8, 3 );
+			cvImage->depth = IPL_DEPTH_8U;
+			cvImage->nChannels = 3;
+			break;
+		case PIXEL_FORMAT_RAW16:
+			cvImage = cvCreateImageHeader(mySize, 8, 3 );
+			cvImage->depth = IPL_DEPTH_8U;
+			cvImage->nChannels = 3;
+			break;
+		case PIXEL_FORMAT_MONO12:
+			//"Image format is not supported by OpenCV"
+			bColor = false;
+			break;
+		case PIXEL_FORMAT_RAW12:
+			//"Image format is not supported by OpenCV
+			break;
+		case PIXEL_FORMAT_BGR:
+			cvImage = cvCreateImageHeader(mySize, 8, 3 );
+			cvImage->depth = IPL_DEPTH_8U;
+			cvImage->nChannels = 3;
+			break;
+		case PIXEL_FORMAT_BGRU:
+			cvImage = cvCreateImageHeader(mySize, 8, 4 );
+			cvImage->depth = IPL_DEPTH_8U;
+			cvImage->nChannels = 4;
+			break;
+		case PIXEL_FORMAT_RGBU:
+			cvImage = cvCreateImageHeader(mySize, 8, 4 );
+			cvImage->depth = IPL_DEPTH_8U;
+			cvImage->nChannels = 4;
+			break;
+		default:
+			cout << "ERROR in detecting image format" << endl;
+			break;
+	}
+
+	if(bColor)
+	{
+		Image colorImage; //new image to be referenced by cvImage
+		colorImage.SetData(new unsigned char[pImage->GetCols() * pImage->GetRows()*3], pImage->GetCols() * pImage->GetRows() * 3);
+		pImage->Convert(PIXEL_FORMAT_BGR, &colorImage); //needs to be as BGR to be saved
+		cvImage->width = colorImage.GetCols();
+		cvImage->height = colorImage.GetRows();
+		cvImage->widthStep = colorImage.GetStride();
+		cvImage->origin = 0; //interleaved color channels
+		cvImage->imageDataOrigin = (char*)colorImage.GetData(); //DataOrigin and Data same pointer, no ROI
+		cvImage->imageData         = (char*)(colorImage.GetData());
+		cvImage->widthStep              = colorImage.GetStride();
+		cvImage->nSize = sizeof (IplImage);
+		cvImage->imageSize = cvImage->height * cvImage->widthStep;
+		//printf("Inside if.  width is %d, height is %d\n",cvImage->width,cvImage->height);
+	}
+	else
+	{
+		cvImage->imageDataOrigin = (char*)(pImage->GetData());
+		cvImage->imageData         = (char*)(pImage->GetData());
+		cvImage->widthStep         = pImage->GetStride();
+		cvImage->nSize             = sizeof (IplImage);
+		cvImage->imageSize         = cvImage->height * cvImage->widthStep;
+		//at this point cvImage contains a valid IplImage
+	}
+
+	return cvImage;
 }
