@@ -52,113 +52,7 @@ int main(int argc, char* argv[]) {
 	Mat colorImg; //color image for connected component labeling
 
 	startVideo();
-	/*
-	char key = '0';
-	while (key != 'q') {
-		switch (key) {
-			case '0':
-				cout << "subtract background for Question 1 part a and b" << endl;
-				result = (img1 - img2) + (img2 - img1);
-				imshow("ELEC536_Project", result);
-				break;
 
-			case 'a':
-				cout << "using manual threshold" <<endl;
-				//putText(result, "Differencing the two images.", cvPoint(30,30), FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(200,200,250), 1, CV_AA);
-				manualThreshold(&result, lower_threshold);
-				imshow("ELEC536_Project", result);
-				//cvWaitKey();
-				break;
-
-			case 'b':
-				cout << "Question 1 part b: Automatic threshold selection" <<endl;
-				//result = (img1 - img2) + (img2 - img1);
-				automaticThreshold(&result);
-				imshow("ELEC536_Project", result);
-				break;
-
-			case 'c':
-				cout << "Median Blur filtering" << endl;
-				//tmp = result.clone();
-				medianBlur(result, result, 5);
-				imshow("ELEC536_Project", result);
-				break;
-
-			case 'd':
-				imshow("ELEC536_Project", tmp);
-				break;
-
-			case 'e':
-				cout << "Question 2 part a implemented with openCV contour function" << endl;
-				tmp = cvCreateMat(result.rows, result.cols, CV_8UC3 ); //initialize a colour image
-				opencvConnectedComponent(&result, &tmp);
-				imshow("ELEC536_Project", tmp);
-				break;
-
-			case 'f':
-				cout << "Calculating depth map based on blur" << endl;
-				//tmp = cvCreateMat(result.rows, result.cols, CV_8UC3 ); //color image
-				tmp = result.clone();
-				depthFromDiffusion(&result, &tmp, 5);
-				imshow("ELEC536_Project", tmp);
-				break;
-
-			case 's':
-				startVideo();
-				break;
-
-			case '1':
-				result = img1.clone();
-				imshow("ELEC536_Project", result);
-				break;
-
-			case '2':
-				result = img2.clone();
-				imshow("ELEC536_Project", result);
-				break;
-
-			case '3':
-				result = img3.clone();
-				imshow("ELEC536_Project", result);
-				break;
-
-			case '4':
-				result = img4.clone();
-				imshow("ELEC536_Project", result);
-				break;
-
-			case '5':
-				result = img5.clone();
-				imshow("ELEC536_Project", result);
-				break;
-
-			case 82:
-				//Up arrow key
-				lower_threshold++;
-				cout << "Increase threshold to: " << lower_threshold << endl;
-				break;
-
-			case 84:
-				//Down arrow key
-				lower_threshold--;
-				cout << "Decrease threshold to: " << lower_threshold << endl;
-				break;
-
-			default:
-				cout << "The following keys are recognized:" << endl;
-				cout << "* Key 1 to 5 is used to load images 1 to 5" << endl;
-				break;
-		}
-		key = cvWaitKey(0);
-		cout << "KEY CODE: " << (int)key << endl;
-	}
-
-	*/
-
-	//cleanup and leave
-	//releaseMat( &result );
-	//cvReleaseMat( &img1 );
-	//cvReleaseMat( &img2 );
 	cvDestroyWindow( "ELEC536_Project" );
 	cout << "Done." << endl;
 	return 0;
@@ -275,26 +169,26 @@ void initiateCamera(){
 	if (pgError != PGRERROR_OK){
 		printf("Error in starting the camera.\n");
 		use_pgr_camera = false;
+		return;
 	}
 	pgrCam.StartCapture();
 	if (pgError != PGRERROR_OK){
 		printf("Error in starting the camera capture.\n");
 		use_pgr_camera = false;
+		return;
 	}
 	cout << "pgr camera initialized." << endl;
 }
 
 void startVideo(){
-	const char *videoFilename;
-	CvCapture *video = NULL;
-	CvSize videoSize;
+	VideoCapture video("/home/zooby/Desktop/grab_and_release_data/Grab_Release_Mar15.avi");
 	double fps = 30;
 	int totalFrames = 0;
 
 	//goodFeaturesToTrack values
 	vector<Point2f> corners;
 	int maxCorners = 10;
-	double qualityLevel = 0.1;
+	double qualityLevel = 0.01;
 	double minDistance = 24;
 	int blockSize = 30;
 	bool useHarrisDetector = false; //its either harris or cornerMinEigenVal
@@ -302,22 +196,27 @@ void startVideo(){
 	//Try the camera
 	initiateCamera();
 
-	//If camera is disconnected fall back on video
+	//If camera is disconnected fall back on video data
 	if(!use_pgr_camera){
-		videoFilename = "grab_release_01.avi";
-		video = cvCreateFileCapture(videoFilename);
-		if(!video){
-			printf("Cannot find video file.\n");
+		if(!video.isOpened()) { // check if we succeeded
+			cout << "Failed to open video file" << endl;
 			return;
-			//system("pause");
 		}
-		if(subtract_background){
-			//getBackground(video);
-		}
-		cvSetCaptureProperty(video,CV_CAP_PROP_POS_FRAMES,0);
-		videoSize = cvSize((int) cvGetCaptureProperty(video,CV_CAP_PROP_FRAME_WIDTH),(int) cvGetCaptureProperty(video,CV_CAP_PROP_FRAME_HEIGHT));
-		fps = cvGetCaptureProperty(video, CV_CAP_PROP_FPS);
-		totalFrames = (int) cvGetCaptureProperty(video,CV_CAP_PROP_FRAME_COUNT);
+
+		//*** just testing TODO
+//		Mat edges;
+//		namedWindow("edges",1);
+//		for(;;)
+//		{
+//			Mat frame;
+//			video >> frame; // get a new frame from camera
+//			cvtColor(frame, edges, CV_BGR2GRAY);
+//			GaussianBlur(edges, edges, Size(7,7), 1.5, 1.5);
+//			Canny(edges, edges, 0, 30, 3);
+//			imshow("edges", edges);
+//			if(waitKey(30) >= 0) break;
+//		}
+		//*** end of testing
 	}
 
 	if(save_video){
@@ -329,16 +228,11 @@ void startVideo(){
 	Mat currentFrame;
 	Mat tmp;
 
-	if(!video && !use_pgr_camera){
-		cout << "nothing to show." << endl;
-	}
-
-	for(int frame = 0; frame < totalFrames || use_pgr_camera; frame++) {
+	for(int frame = 0; frame < 100 || use_pgr_camera; frame++) {
 		if(use_pgr_camera){
 			currentFrame = grabImage();
 		} else{
-			//TODO: videoFrame = cvQueryFrame(video);
-			//cropImage(videoFrame);
+			video >> currentFrame;
 		}
 
 		key = cvWaitKey(10);
@@ -352,18 +246,20 @@ void startVideo(){
 				break;
 		}
 
-		//previousFrame = currentFrame.clone();
+		// previousFrame = currentFrame.clone();
+        // cvtColor(currentFrame, currentFrame, CV_RGB2GRAY);
 		medianBlur(currentFrame, currentFrame, 5);
+		GaussianBlur(currentFrame, currentFrame, Size(7,7), 1.5, 1.5);
 		threshold(currentFrame, currentFrame, lower_threshold, 255, THRESH_TOZERO);
-		tmp = currentFrame.clone();
-		//depthFromDiffusion(&tmp, &currentFrame, 3);
+//		tmp = currentFrame.clone();
+//		//depthFromDiffusion(&tmp, &currentFrame, 3);
 		goodFeaturesToTrack( currentFrame, corners, maxCorners, qualityLevel, minDistance, currentFrame, blockSize, useHarrisDetector);
-
-		//Draw squares where features are detected
-		for(int i = 0; i < maxCorners; i++) {
-			rectangle(currentFrame, Point(corners[i].x - blockSize/2, corners[i].y - blockSize/2),
-					Point(corners[i].x + blockSize/2, corners[i].y + blockSize/2),Scalar(200,200,200));
-		}
+//
+//		//Draw squares where features are detected
+//		for(int i = 0; i < maxCorners; i++) {
+//			rectangle(currentFrame, Point(corners[i].x - blockSize/2, corners[i].y - blockSize/2),
+//					Point(corners[i].x + blockSize/2, corners[i].y + blockSize/2),Scalar(200,200,200));
+//		}
 
 		if (display_video) {
 			imshow("ELEC536_Project", currentFrame);
@@ -373,9 +269,7 @@ void startVideo(){
 	previousFrame.release();
 	currentFrame.release();
 	tmp.release();
-	if(!use_pgr_camera){
-		cvReleaseCapture(&video);
-	} else {
+	if(use_pgr_camera){
 		pgrCam.StopCapture();
 	}
 }
