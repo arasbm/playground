@@ -21,7 +21,6 @@ using namespace std;
 using namespace cv;
 using namespace FlyCapture2;
 
-void manualThreshold(Mat* result, int threshold);
 void automaticThreshold(Mat* result);
 void opencvConnectedComponent(Mat* src, Mat* dst);
 void depthFromDiffusion(Mat* src, Mat* dst, int size);
@@ -48,15 +47,9 @@ CvPoint mouseLocation;
 int main(int argc, char* argv[]) {
 	cout << "Starting ELEC536 Assignment 2 Application" << endl;
 	cvNamedWindow( "ELEC536_Project", CV_WINDOW_AUTOSIZE );
-
-	Mat img1 = imread("img/1.pgm", CV_LOAD_IMAGE_GRAYSCALE);
-	Mat img2 = imread("img/2.pgm", CV_LOAD_IMAGE_GRAYSCALE);
-	Mat img3 = imread("img/3.pgm", CV_LOAD_IMAGE_GRAYSCALE);
-	Mat img4 = imread("img/4.pgm", CV_LOAD_IMAGE_GRAYSCALE);
-	Mat img5 = imread("img/5.pgm", CV_LOAD_IMAGE_GRAYSCALE);
-	Mat result; //working image for most parts
-	Mat tmp;
-	Mat colorTmp; //color image for connected component labeling
+	//Mat result; //working image for most parts
+	//Mat tmp;
+	Mat colorImg; //color image for connected component labeling
 
 	startVideo();
 	/*
@@ -169,19 +162,6 @@ int main(int argc, char* argv[]) {
 	cvDestroyWindow( "ELEC536_Project" );
 	cout << "Done." << endl;
 	return 0;
-}
-
-/**
- * This function iterates through the image and convert it to a
- * binary image based on the value of the threshold
- * */
-void manualThreshold(Mat* result, int threshold) {
-	for(int i = 0; i < result->rows; i++) {
-		uchar* rowPtr = result->ptr<uchar>(i);
-		for(int j=0; j < result->cols; j++) {
-			rowPtr[j] = (rowPtr[j] < threshold) ? 0 : 255;
-		}
-	}
 }
 
 /**
@@ -340,15 +320,9 @@ void startVideo(){
 		totalFrames = (int) cvGetCaptureProperty(video,CV_CAP_PROP_FRAME_COUNT);
 	}
 
-	CvVideoWriter *writer;
 	if(save_video){
-		writer = cvCreateVideoWriter("rawOutput.avi",-1,fps,videoSize);
-		if(!writer){
-			printf("Failed to initiate video writer, fps is %f, video size is %d,%d",fps,videoSize.width,videoSize.height);
-		}
+		//TODO: save video
 	}
-
-	mouseLocation = cvPoint(0,0);
 
 	int key;
 	Mat previousFrame;
@@ -380,7 +354,7 @@ void startVideo(){
 
 		//previousFrame = currentFrame.clone();
 		medianBlur(currentFrame, currentFrame, 5);
-		//currentFrame = currentFrame > 30;
+		threshold(currentFrame, currentFrame, lower_threshold, 255, THRESH_TOZERO);
 		tmp = currentFrame.clone();
 		//depthFromDiffusion(&tmp, &currentFrame, 3);
 		goodFeaturesToTrack( currentFrame, corners, maxCorners, qualityLevel, minDistance, currentFrame, blockSize, useHarrisDetector);
@@ -396,6 +370,9 @@ void startVideo(){
 		}
 	}
 
+	previousFrame.release();
+	currentFrame.release();
+	tmp.release();
 	if(!use_pgr_camera){
 		cvReleaseCapture(&video);
 	} else {
