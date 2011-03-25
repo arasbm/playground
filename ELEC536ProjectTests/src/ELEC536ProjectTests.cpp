@@ -158,13 +158,15 @@ void startVideo(){
 	double fps = 30;
 	int totalFrames = 0;
 
+
+
 	//goodFeaturesToTrack values
 	vector<Point2f> previousCorners;
 	vector<Point2f> currentCorners;
 	vector<uchar> flowStatus;
 	vector<float> flowError;
 	TermCriteria termCriteria = TermCriteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.3 );
-	double derivLambda = 0.5; //proportion for impact of "image intensity" as opposed to "derivatives"
+	double derivLambda = 0.1; //proportion for impact of "image intensity" as opposed to "derivatives"
 	int maxCorners = 16;
 	double qualityLevel = 0.01;
 	double minDistance = 20;
@@ -186,11 +188,13 @@ void startVideo(){
 		//TODO: save video
 	}
 
+	//Preparing for main video loop
 	Mat previousFrame;
 	Mat currentFrame;
 	Mat trackingResults;
+	Mat binaryImg; //binary image for finding contours of the hand
 	Mat tmp;
-
+	Scalar color = CV_RGB(100,50,50);
 	char key = 'a';
 	int frame_count = 0;
 	while(key != 'q') {
@@ -199,11 +203,11 @@ void startVideo(){
 		} else{
 			video >> currentFrame;
 		}
-		imshow("Source", currentFrame);
+		//imshow("Source", currentFrame);
 
 		//do all the pre-processing
 		process(currentFrame);
-		imshow("Processed", currentFrame);
+		//imshow("Processed", currentFrame);
 
 		//need at least one previous frame to process
 		if(frame_count == 0) {
@@ -225,26 +229,45 @@ void startVideo(){
 
 		// previousFrame = currentFrame.clone();
 
-		tmp = previousFrame.clone();
+
+		//Contour detection algorithm
+		//Find Two Largest Contours TODO: sort and filter out small contours
+		vector<vector<cv::Point> > contours;
+		vector<Vec4i> hiearchy;
+		binaryImg = currentFrame.clone();
+		threshold(binaryImg, binaryImg, lower_threshold, 255, THRESH_BINARY);
+		findContours(binaryImg, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+
 		//Canny(previousFrame, previousFrame, 0, 30, 3);
 		trackingResults = cvCreateMat(currentFrame.rows, currentFrame.cols, CV_8UC3 );
 		cvtColor(currentFrame, trackingResults, CV_GRAY2BGR);
 
 		goodFeaturesToTrack(previousFrame, previousCorners, maxCorners, qualityLevel, minDistance, previousFrame, blockSize, useHarrisDetector);
 //
-		calcOpticalFlowPyrLK(previousFrame, currentFrame, previousCorners, currentCorners, flowStatus, flowError, Size(blockSize, blockSize), 3, termCriteria, derivLambda, OPTFLOW_USE_INITIAL_FLOW);
+		calcOpticalFlowPyrLK(previousFrame, currentFrame, previousCorners, currentCorners, flowStatus, flowError, Size(blockSize, blockSize), 4, termCriteria, derivLambda, OPTFLOW_FARNEBACK_GAUSSIAN);
 		//Draw squares where features are detected
 		for(int i = 0; i < maxCorners; i++) {
 			rectangle(trackingResults, Point(previousCorners[i].x - blockSize/2, previousCorners[i].y - blockSize/2), Point(previousCorners[i].x + blockSize/2, previousCorners[i].y + blockSize/2), Scalar(200,100,200));
-			//if(flowStatus[i] == 1) {
-				line(trackingResults, previousCorners[i], currentCorners[i], Scalar(150,200,150), 2, 8, 1);
-			//}
+			if((uchar)flowStatus[i] == 1) {
+				line(trackingResults, previousCorners[i], currentCorners[i], Scalar(150,200,150), 2, 8, 0);
+			}
 		}
+
+		//Draw contours
+
+		//for (int index = 0; index >= 0; index = hiearchy[index][0]) {
+		Scalar color = CV_RGB(rand()&255, rand()&255, rand()&255 );
+		int index = hiearchy[0][0];
+		//drawContours(trackingResults, contours, index, color, 3, CV_FILLED, hiearchy, std::abs(index));
+		//drawContours(trackingResults, contours, index, color, CV_, 4, hiearchy);
+		//}
 
 		imshow("Tracked", trackingResults);
 
 		previousFrame = currentFrame;
 		currentCorners = previousCorners;
+
+
 	}
 
 	//Clean up before leaving
