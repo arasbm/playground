@@ -21,7 +21,7 @@ using namespace std;
 using namespace cv;
 using namespace FlyCapture2;
 
-void automaticThreshold(Mat* result);
+void process(Mat* img);
 void opencvConnectedComponent(Mat* src, Mat* dst);
 void depthFromDiffusion(Mat* src, Mat* dst, int size);
 void initiateCamera();
@@ -45,57 +45,22 @@ PGRGuid guid;
 CvPoint mouseLocation;
 
 int main(int argc, char* argv[]) {
-	cout << "Starting ELEC536 Assignment 2 Application" << endl;
-	cvNamedWindow( "ELEC536_Project", CV_WINDOW_AUTOSIZE );
+	cout << "Starting ELEC536 Grab and Release Project" << endl;
+	cvNamedWindow( "Source", CV_WINDOW_AUTOSIZE ); 		//monochrome source
+	cvNamedWindow( "Processed", CV_WINDOW_AUTOSIZE ); 	//monochrome image after pre-processing
+	cvNamedWindow( "Tracked", CV_WINDOW_AUTOSIZE ); 	//Colour with pretty drawings showing tracking results
+
 	//Mat result; //working image for most parts
 	//Mat tmp;
 	Mat colorImg; //color image for connected component labeling
 
 	startVideo();
 
-	cvDestroyWindow( "ELEC536_Project" );
-	cout << "Done." << endl;
+	cvDestroyWindow( "Source" );
+	cvDestroyWindow( "Processed" );
+	cvDestroyWindow( "Tracked" );
+	cout << "Exiting ELEC536 Grab and Release Project." << endl;
 	return 0;
-}
-
-/**
- * My own implementation of iterative optimal threshold selection
- * an automatic thresholding algorithm
- * */
-void automaticThreshold(Mat* result) {
-	cout << "Automatic threshold selection ..." << endl;
-	int estimated_threshold = 100; //Initial estimate
-	int selected_threshold = 0;
-	int iter_count = 1;
-	while (selected_threshold != estimated_threshold) {
-		int sum1 = 0, count1 = 0, sum2 = 0, count2 = 0;
-		for(int i = 0; i < result->rows; i++) {
-			uchar* rowPtr = result->ptr<uchar>(i);
-			for(int j=0; j < result->cols; j++) {
-				if (rowPtr[j] < estimated_threshold) {
-					sum1 += rowPtr[j];
-					count1++;
-				} else {
-					sum2 += rowPtr[j];
-					count2++;
-				}
-			}
-		}
-		int mu1 = sum1 / count1; //Average of group 1
-		int mu2 = sum2 / count2; //Average of group 2
-		selected_threshold = estimated_threshold;
-		estimated_threshold = 0.5 * (mu1 + mu2);
-		cout << iter_count << " - Previous T: [" << selected_threshold << "] Next T: [";
-		cout << estimated_threshold << "]" << endl;
-		iter_count++;
-	}
-	cout << "Selected threshold: [[ " << selected_threshold << " ]]" << endl;
-
-	lower_threshold = selected_threshold;
-
-	//convert the image to binary using this selected threshold value
-	//manualThreshold(result, selected_threshold);
-	threshold(*result, *result, lower_threshold, 255, THRESH_BINARY );
 }
 
 /**
@@ -103,7 +68,6 @@ void automaticThreshold(Mat* result) {
  * opencv findContour function
  * */
 void opencvConnectedComponent(Mat* src, Mat* dst) {
-
 	vector<vector<cv::Point> > contours;
 	vector<Vec4i> hiearchy;
 
@@ -127,7 +91,7 @@ void depthFromDiffusion(Mat* src, Mat* dst, int size) {
 		Mat window;
 		//Mat sorted_window;
 
-		//Move the window one pixel at a time through the image and set pixel value
+		// Move the window one pixel at a time through the image and set pixel value
 		// in dst to the standard deviation of values in current window
 		for(int i = border; i < src->rows - border; i++) {
 			for(int j = border; j < src->cols - border; j++) {
@@ -138,7 +102,7 @@ void depthFromDiffusion(Mat* src, Mat* dst, int size) {
 				if (src->at<uchar>(i,j) < lower_threshold) {
 					dst->at<uchar>(i,j) = 0;
 				} else {
-					//window is eithr blury or very smooth
+					//window is either blury or very smooth
 					if (src->at<uchar>(i,j) > upper_threshold) {
 						dst->at<uchar>(i,j) = src->at<uchar>(i,j);
 					} else {
@@ -154,8 +118,6 @@ void depthFromDiffusion(Mat* src, Mat* dst, int size) {
 		}
 
 }
-
-
 
 void initiateCamera(){
 	//Starts the camera.
@@ -180,16 +142,32 @@ void initiateCamera(){
 	cout << "pgr camera initialized." << endl;
 }
 
+/**
+ * Do all the pre-processing before tracking the image
+ * */
+void process(Mat img) {
+	// cvtColor(currentFrame, currentFrame, CV_RGB2GRAY);
+	medianBlur(img, img, 5);
+	GaussianBlur(img, img, Size(5,5), 1.5, 1.5);
+	//threshold(img, img, lower_threshold, 255, THRESH_TOZERO);
+	//depthFromDiffusion(&tmp, &previousFrame, 5);
+}
+
 void startVideo(){
 	VideoCapture video("/home/zooby/Desktop/grab_and_release_data/Grab_Release_Mar15.avi");
 	double fps = 30;
 	int totalFrames = 0;
 
 	//goodFeaturesToTrack values
-	vector<Point2f> corners;
-	int maxCorners = 10;
+	vector<Point2f> previousCorners;
+	vector<Point2f> currentCorners;
+	vector<uchar> flowStatus;
+	vector<float> flowError;
+	TermCriteria termCriteria = TermCriteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.3 );
+	double derivLambda = 0.5; //proportion for impact of "image intensity" as opposed to "derivatives"
+	int maxCorners = 16;
 	double qualityLevel = 0.01;
-	double minDistance = 24;
+	double minDistance = 20;
 	int blockSize = 30;
 	bool useHarrisDetector = false; //its either harris or cornerMinEigenVal
 
@@ -202,75 +180,81 @@ void startVideo(){
 			cout << "Failed to open video file" << endl;
 			return;
 		}
-
-		//*** just testing TODO
-//		Mat edges;
-//		namedWindow("edges",1);
-//		for(;;)
-//		{
-//			Mat frame;
-//			video >> frame; // get a new frame from camera
-//			cvtColor(frame, edges, CV_BGR2GRAY);
-//			GaussianBlur(edges, edges, Size(7,7), 1.5, 1.5);
-//			Canny(edges, edges, 0, 30, 3);
-//			imshow("edges", edges);
-//			if(waitKey(30) >= 0) break;
-//		}
-		//*** end of testing
 	}
 
 	if(save_video){
 		//TODO: save video
 	}
 
-	int key;
 	Mat previousFrame;
 	Mat currentFrame;
+	Mat trackingResults;
 	Mat tmp;
 
-	for(int frame = 0; frame < 100 || use_pgr_camera; frame++) {
+	char key = 'a';
+	int frame_count = 0;
+	while(key != 'q') {
 		if(use_pgr_camera){
 			currentFrame = grabImage();
 		} else{
 			video >> currentFrame;
 		}
+		imshow("Source", currentFrame);
+
+		//do all the pre-processing
+		process(currentFrame);
+		imshow("Processed", currentFrame);
+
+		//need at least one previous frame to process
+		if(frame_count == 0) {
+			previousFrame = currentFrame;
+		}
+		frame_count++;
 
 		key = cvWaitKey(10);
-
 		switch(key) {
 			case '1':
 				break;
 			case '2':
+				break;
+			case 'a':
 				break;
 			default:
 				break;
 		}
 
 		// previousFrame = currentFrame.clone();
-        // cvtColor(currentFrame, currentFrame, CV_RGB2GRAY);
-		medianBlur(currentFrame, currentFrame, 5);
-		GaussianBlur(currentFrame, currentFrame, Size(7,7), 1.5, 1.5);
-		threshold(currentFrame, currentFrame, lower_threshold, 255, THRESH_TOZERO);
-//		tmp = currentFrame.clone();
-//		//depthFromDiffusion(&tmp, &currentFrame, 3);
-		goodFeaturesToTrack( currentFrame, corners, maxCorners, qualityLevel, minDistance, currentFrame, blockSize, useHarrisDetector);
-//
-//		//Draw squares where features are detected
-//		for(int i = 0; i < maxCorners; i++) {
-//			rectangle(currentFrame, Point(corners[i].x - blockSize/2, corners[i].y - blockSize/2),
-//					Point(corners[i].x + blockSize/2, corners[i].y + blockSize/2),Scalar(200,200,200));
-//		}
 
-		if (display_video) {
-			imshow("ELEC536_Project", currentFrame);
+		tmp = previousFrame.clone();
+		//Canny(previousFrame, previousFrame, 0, 30, 3);
+		trackingResults = cvCreateMat(currentFrame.rows, currentFrame.cols, CV_8UC3 );
+		cvtColor(currentFrame, trackingResults, CV_GRAY2BGR);
+
+		goodFeaturesToTrack(previousFrame, previousCorners, maxCorners, qualityLevel, minDistance, previousFrame, blockSize, useHarrisDetector);
+//
+		calcOpticalFlowPyrLK(previousFrame, currentFrame, previousCorners, currentCorners, flowStatus, flowError, Size(blockSize, blockSize), 3, termCriteria, derivLambda, OPTFLOW_USE_INITIAL_FLOW);
+		//Draw squares where features are detected
+		for(int i = 0; i < maxCorners; i++) {
+			rectangle(trackingResults, Point(previousCorners[i].x - blockSize/2, previousCorners[i].y - blockSize/2), Point(previousCorners[i].x + blockSize/2, previousCorners[i].y + blockSize/2), Scalar(200,100,200));
+			//if(flowStatus[i] == 1) {
+				line(trackingResults, previousCorners[i], currentCorners[i], Scalar(150,200,150), 2, 8, 1);
+			//}
 		}
+
+		imshow("Tracked", trackingResults);
+
+		previousFrame = currentFrame;
+		currentCorners = previousCorners;
 	}
 
+	//Clean up before leaving
 	previousFrame.release();
 	currentFrame.release();
+	trackingResults.release();
 	tmp.release();
 	if(use_pgr_camera){
 		pgrCam.StopCapture();
+		pgrCam.Disconnect();
 	}
 }
 
