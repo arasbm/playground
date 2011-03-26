@@ -1,32 +1,26 @@
 what,kind,bundleId,bundleVersion,description,time
-activated,view,org.eclipse.ui.console,3.5.0.v20100526,"org.eclipse.ui.console.ConsoleView",1301088149631
-deactivated,workbench,org.eclipse.ui.workbench,3.6.1.M20100826-1330,"",1301088150032
-error,log,,,"Error logged from Debug Core: ",1301088150227
-activated,workbench,org.eclipse.ui.workbench,3.6.1.M20100826-1330,"",1301088150236
-activated,editor,org.eclipse.cdt.ui,5.2.1.201009141542,"org.eclipse.cdt.ui.editor.CEditor",1301088151697
-error,log,,,"Unable to get CElement for Macro",1301088153345
-error,log,,,"Unable to get CElement for Macro",1301088153346
-error,log,,,"Unable to get CElement for Macro",1301088153347
-error,log,,,"Unable to get CElement for Macro",1301088153348
-executed,command,org.eclipse.ui,3.6.1.M20100826-1330,"org.eclipse.ui.edit.text.contentAssist.proposals",1301088153374
-deactivated,workbench,org.eclipse.ui.workbench,3.6.1.M20100826-1330,"",1301088156780
-activated,workbench,org.eclipse.ui.workbench,3.6.1.M20100826-1330,"",1301088157881
-activated,view,org.eclipse.ui.console,3.5.0.v20100526,"org.eclipse.ui.console.ConsoleView",1301088160464
-deactivated,workbench,org.eclipse.ui.workbench,3.6.1.M20100826-1330,"",1301088160939
-error,log,,,"Error logged from Debug Core: ",1301088161155
-activated,workbench,org.eclipse.ui.workbench,3.6.1.M20100826-1330,"",1301088161165
-activated,editor,org.eclipse.cdt.ui,5.2.1.201009141542,"org.eclipse.cdt.ui.editor.CEditor",1301088163301
-deactivated,workbench,org.eclipse.ui.workbench,3.6.1.M20100826-1330,"",1301088178611
-activated,workbench,org.eclipse.ui.workbench,3.6.1.M20100826-1330,"",1301088432171
-deactivated,workbench,org.eclipse.ui.workbench,3.6.1.M20100826-1330,"",1301092214288
-closed,workbench,org.eclipse.ui.workbench,3.6.1.M20100826-1330,"",1301092216253
-stopped,bundle,org.eclipse.linuxtools.valgrind.massif,0.6.1.201009101021,"org.eclipse.linuxtools.valgrind.massif",1301092216703
-stopped,bundle,org.eclipse.birt.chart.device.svg,2.6.1.v20100902,"org.eclipse.birt.chart.device.svg",1301092216720
-stopped,bundle,org.eclipse.birt.chart.device.extension,2.6.1.v20100902,"org.eclipse.birt.chart.device.extension",1301092216752
-stopped,bundle,org.eclipse.birt.chart.device.swt,2.6.1.v20100812,"org.eclipse.birt.chart.device.swt",1301092216777
-stopped,bundle,org.eclipse.birt.chart.engine.extension,2.6.1.v20100902,"org.eclipse.birt.chart.engine.extension",1301092216787
-stopped,bundle,org.eclipse.linuxtools.gcov,4.1.1.201009101021,"org.eclipse.linuxtools.gcov",1301092216805
-stopped,bundle,org.eclipse.linuxtools.gprof,4.0.0.201009101021,"org.eclipse.linuxtools.gprof",1301092216810
-stopped,bundle,org.eclipse.linuxtools.dataviewers.charts,4.1.0.201009101021,"org.eclipse.linuxtools.dataviewers.charts",1301092216817
-stopped,bundle,org.eclipse.birt.chart.ui,2.6.1.v20100819,"org.eclipse.birt.chart.ui",1301092216837
-stopped,bundle,org.eclipse.linuxtools.systemtap.ui.dashboardextension,0.3.0.201009101021,"org.eclipse.linuxtools.systemtap.ui.dashboardextension",1301092216838
+activated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136116477
+activated,view,org.eclipse.ui.console,3.5.100.v20110126,"org.eclipse.ui.console.ConsoleView",1301136122763
+deactivated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136123120
+activated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136123692
+activated,editor,org.eclipse.cdt.ui,5.3.0.201101311025,"org.eclipse.cdt.ui.editor.CEditor",1301136125907
+deactivated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136131968
+activated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136133534
+activated,view,org.eclipse.ui.console,3.5.100.v20110126,"org.eclipse.ui.console.ConsoleView",1301136140086
+deactivated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136140276
+activated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136150792
+activated,editor,org.eclipse.cdt.ui,5.3.0.201101311025,"org.eclipse.cdt.ui.editor.CEditor",1301136152432
+executed,command,org.eclipse.ui.workbench.texteditor,3.7.0.v20110124-0100,"org.eclipse.ui.edit.text.shiftLeft",1301136267300
+deactivated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136283795
+activated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136285411
+activated,view,org.eclipse.ui.console,3.5.100.v20110126,"org.eclipse.ui.console.ConsoleView",1301136291854
+deactivated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136292255
+activated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136296391
+activated,editor,org.eclipse.cdt.ui,5.3.0.201101311025,"org.eclipse.cdt.ui.editor.CEditor",1301136299779
+deactivated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136314505
+activated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136315957
+activated,view,org.eclipse.ui.console,3.5.100.v20110126,"org.eclipse.ui.console.ConsoleView",1301136322255
+deactivated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136322678
+activated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136326831
+activated,editor,org.eclipse.cdt.ui,5.3.0.201101311025,"org.eclipse.cdt.ui.editor.CEditor",1301136332343
+deactivated,workbench,org.eclipse.ui.workbench,3.7.0.I20110127-0800,"",1301136375575

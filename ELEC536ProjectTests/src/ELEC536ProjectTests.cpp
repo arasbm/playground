@@ -158,9 +158,7 @@ void startVideo(){
 	double fps = 30;
 	int totalFrames = 0;
 
-
-
-	//goodFeaturesToTrack values
+	//goodFeaturesToTrack structure and settings
 	vector<Point2f> previousCorners;
 	vector<Point2f> currentCorners;
 	vector<uchar> flowStatus;
@@ -172,6 +170,10 @@ void startVideo(){
 	double minDistance = 20;
 	int blockSize = 30;
 	bool useHarrisDetector = false; //its either harris or cornerMinEigenVal
+
+	//Contour detection structures
+	vector<vector<cv::Point> > contours;
+	vector<Vec4i> hiearchy;
 
 	//Try the camera
 	initiateCamera();
@@ -193,15 +195,27 @@ void startVideo(){
 	Mat currentFrame;
 	Mat trackingResults;
 	Mat binaryImg; //binary image for finding contours of the hand
-	Mat tmp;
-	Scalar color = CV_RGB(100,50,50);
+	Mat tmpMono;
+	Mat tmpColor;
+
+	//Define some nice BGR colors for dark background
+	Scalar YELLOW = CV_RGB(255, 255, 51);
+	Scalar ORANGE = CV_RGB(255, 153, 51); //use for left hand
+	Scalar RED = CV_RGB(255, 51, 51);
+	Scalar PINK = CV_RGB(255, 51, 153);
+	Scalar GREEN = CV_RGB(153, 255, 51);
+	Scalar BLUE = CV_RGB(51, 153, 255); // use for right hand
+	Scalar OLIVE = CV_RGB(184, 184, 0);
+	Scalar RANDOM_COLOR = CV_RGB(rand()&255, rand()&255, rand()&255 ); //a random color
+
 	char key = 'a';
 	int frame_count = 0;
 	while(key != 'q') {
 		if(use_pgr_camera){
 			currentFrame = grabImage();
 		} else{
-			video >> currentFrame;
+			video >> tmpColor;
+			cvtColor(tmpColor, currentFrame, CV_RGB2GRAY);
 		}
 		//imshow("Source", currentFrame);
 
@@ -229,14 +243,12 @@ void startVideo(){
 
 		// previousFrame = currentFrame.clone();
 
-
-		//Contour detection algorithm
 		//Find Two Largest Contours TODO: sort and filter out small contours
-		vector<vector<cv::Point> > contours;
-		vector<Vec4i> hiearchy;
+
 		binaryImg = currentFrame.clone();
 		threshold(binaryImg, binaryImg, lower_threshold, 255, THRESH_BINARY);
-		findContours(binaryImg, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+		//findContours(binaryImg, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+		findContours( binaryImg, contours, RETR_LIST, CV_CHAIN_APPROX_SIMPLE );
 
 		//Canny(previousFrame, previousFrame, 0, 30, 3);
 		trackingResults = cvCreateMat(currentFrame.rows, currentFrame.cols, CV_8UC3 );
@@ -247,19 +259,39 @@ void startVideo(){
 		calcOpticalFlowPyrLK(previousFrame, currentFrame, previousCorners, currentCorners, flowStatus, flowError, Size(blockSize, blockSize), 4, termCriteria, derivLambda, OPTFLOW_FARNEBACK_GAUSSIAN);
 		//Draw squares where features are detected
 		for(int i = 0; i < maxCorners; i++) {
-			rectangle(trackingResults, Point(previousCorners[i].x - blockSize/2, previousCorners[i].y - blockSize/2), Point(previousCorners[i].x + blockSize/2, previousCorners[i].y + blockSize/2), Scalar(200,100,200));
+			rectangle(trackingResults, Point(previousCorners[i].x - blockSize/2, previousCorners[i].y - blockSize/2), Point(previousCorners[i].x + blockSize/2, previousCorners[i].y + blockSize/2), PINK);
 			if((uchar)flowStatus[i] == 1) {
-				line(trackingResults, previousCorners[i], currentCorners[i], Scalar(150,200,150), 2, 8, 0);
+				line(trackingResults, previousCorners[i], currentCorners[i], GREEN, 2, 8, 0);
 			}
 		}
 
-		//Draw contours
+		//Draw contours if there are any
+		//if (hiearchy.size() > 0) {
+			double max1Index = 0; //biggest blob
+			double max1Area = 0;
+			double max2Index = 0; //second biggest blob
+			double max2Area = 0;
+			//for (int i = 0; i < contours.size(); i++) {
+//				Moment moment = moment(contour[i]);
+//				if(contourArea(contours[i]) > max2Area) {
+//					max2Area = contourArea(contours[i]);
+//					max2Index = i;
+//				} else if (contourArea(contours[i]) > max1Area) {
+//					max1Area = contourArea();
+//					max1Index = i;
+//				}
+			if (contours.size() > 2) {
+				if (contours[0].size() > 1) {
+					drawContours(trackingResults, contours, -1, ORANGE);
+				}
+			}
 
-		//for (int index = 0; index >= 0; index = hiearchy[index][0]) {
-		Scalar color = CV_RGB(rand()&255, rand()&255, rand()&255 );
-		int index = hiearchy[0][0];
-		//drawContours(trackingResults, contours, index, color, 3, CV_FILLED, hiearchy, std::abs(index));
-		//drawContours(trackingResults, contours, index, color, CV_, 4, hiearchy);
+			//}
+			//int index = 0;
+			//for (; index >= 0; index = hiearchy[index][0]) {
+			//	drawContours(trackingResults, contours, 0, ORANGE, 1, 4, hiearchy, 0);
+
+			//}
 		//}
 
 		imshow("Tracked", trackingResults);
@@ -267,14 +299,14 @@ void startVideo(){
 		previousFrame = currentFrame;
 		currentCorners = previousCorners;
 
-
 	}
 
 	//Clean up before leaving
 	previousFrame.release();
 	currentFrame.release();
 	trackingResults.release();
-	tmp.release();
+	tmpColor.release();
+	tmpMono.release();
 	if(use_pgr_camera){
 		pgrCam.StopCapture();
 		pgrCam.Disconnect();
