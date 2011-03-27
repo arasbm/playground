@@ -21,16 +21,18 @@ using namespace std;
 using namespace cv;
 using namespace FlyCapture2;
 
-void process(Mat* img);
+void process(Mat img);
 void opencvConnectedComponent(Mat* src, Mat* dst);
-void depthFromDiffusion(Mat* src, Mat* dst, int size);
+void depthFromDiffusion(Mat img, int size);
 void initiateCamera();
 void startVideo();
+float getDistance(const Point2f a, const Point2f b);
+void findMeanAndStdDev(const vector<Point2f> list, Point2f meanPoint, float* stdDev);
 Mat grabImage();
 IplImage* convertImageToOpenCV(Image* pImage);
 
 //Global Settings
-int lower_threshold = 20; //global threshold which can be changed using up and down arrow keys
+int lower_threshold = 15; //global threshold which can be changed using up and down arrow keys
 int upper_threshold = 200;
 bool save_video = false;
 bool display_video = true;
@@ -85,28 +87,29 @@ void opencvConnectedComponent(Mat* src, Mat* dst) {
 /**
  * Precondition: size > 1 and it is an odd number
  */
-void depthFromDiffusion(Mat* src, Mat* dst, int size) {
+void depthFromDiffusion(Mat img, int size) {
 		int border = round(size / 2);
 		Rect rect = Rect(0, 0, size, size);
 		Mat window;
+		Mat tmp = img.clone();
 		//Mat sorted_window;
 
 		// Move the window one pixel at a time through the image and set pixel value
 		// in dst to the standard deviation of values in current window
-		for(int i = border; i < src->rows - border; i++) {
-			for(int j = border; j < src->cols - border; j++) {
-				window = Mat(*src, rect);
+		for(int i = border; i < tmp.rows - border; i++) {
+			for(int j = border; j < tmp.cols - border; j++) {
+				window = Mat(tmp, rect);
 				Scalar mean;
 				Scalar stdDev;
 				cv::meanStdDev(window, mean, stdDev);
-				if (src->at<uchar>(i,j) < lower_threshold) {
-					dst->at<uchar>(i,j) = 0;
+				if (tmp.at<uchar>(i,j) < lower_threshold) {
+					img.at<uchar>(i,j) = 0;
 				} else {
 					//window is either blury or very smooth
-					if (src->at<uchar>(i,j) > upper_threshold) {
-						dst->at<uchar>(i,j) = src->at<uchar>(i,j);
+					if (tmp.at<uchar>(i,j) > upper_threshold) {
+						img.at<uchar>(i,j) = tmp.at<uchar>(i,j);
 					} else {
-						dst->at<uchar>(i,j) = (stdDev.val[0] / pow(size, 2)) * 191 + src->at<uchar>(i,j) / 4;
+						img.at<uchar>(i,j) = (stdDev.val[0] / pow(size, 2)) * 191 + tmp.at<uchar>(i,j) / 4;
 					}
 				}
 
@@ -116,7 +119,6 @@ void depthFromDiffusion(Mat* src, Mat* dst, int size) {
 			rect.y += 1;
 			rect.x = 0;
 		}
-
 }
 
 void initiateCamera(){
@@ -147,11 +149,15 @@ void initiateCamera(){
  * */
 void process(Mat img) {
 	// cvtColor(currentFrame, currentFrame, CV_RGB2GRAY);
-	medianBlur(img, img, 3);
-	GaussianBlur(img, img, Size(3,3), 1.5, 1.5);
+	//GaussianBlur(img, img, Size(5,5), 2, 2);
+	//medianBlur(img, img, 21);
+	//morphologyEx(img, img, MORPH_OPEN, );
 	//
 	//threshold(img, img, lower_threshold, 255, THRESH_TOZERO);
-	//depthFromDiffusion(&tmp, &previousFrame, 5);
+	//depthFromDiffusion(img, 3);
+	//img = img + (img > 30);
+	//boxFilter(img, img, 2, Size(3,3), Point(-1,-1), false, BORDER_CONSTANT);
+	//bilateralFilter(img, img, 3, 20, 5, BORDER_CONSTANT);
 }
 
 void startVideo(){
@@ -163,14 +169,15 @@ void startVideo(){
 	vector<Point2f> previousCorners;
 	vector<Point2f> currentCorners;
 	vector<uchar> flowStatus;
+	vector<uchar> leftRightStatus;
 	vector<float> flowError;
 	TermCriteria termCriteria = TermCriteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.3 );
-	double derivLambda = 0.1; //proportion for impact of "image intensity" as opposed to "derivatives"
+	double derivLambda = 0.5; //proportion for impact of "image intensity" as opposed to "derivatives"
 	int maxCorners = 16;
 	double qualityLevel = 0.01;
-	double minDistance = 20;
-	int blockSize = 30;
-	bool useHarrisDetector = false; //its either harris or cornerMinEigenVal
+	double minDistance = 10;
+	int blockSize = 16;
+	bool useHarrisDetector = true; //its either harris or cornerMinEigenVal
 
 	//Contour detection structures
 	vector<vector<cv::Point> > contours;
@@ -185,10 +192,6 @@ void startVideo(){
 			cout << "Failed to open video file" << endl;
 			return;
 		}
-	}
-
-	if(save_video){
-		//TODO: save video
 	}
 
 	//Preparing for main video loop
@@ -244,10 +247,14 @@ void startVideo(){
 
 		// previousFrame = currentFrame.clone();
 
-		//Find Two Largest Contours TODO: sort and filter out small contours
-
+		/**
+		 * Prepare the binary image for tracking hands as the two largest blobs in the scene
+		 * */
 		binaryImg = currentFrame.clone();
 		threshold(binaryImg, binaryImg, lower_threshold, 255, THRESH_BINARY);
+		medianBlur(binaryImg, binaryImg, 21);
+		//adaptiveThreshold(binaryImg, binaryImg, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 3, 10); //adaptive thresholding not works so well here
+		imshow("Binary", binaryImg);
 		findContours(binaryImg, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		//findContours( binaryImg, contours, RETR_TREE, CV_CHAIN_APPROX_SIMPLE );
 
@@ -256,38 +263,10 @@ void startVideo(){
 		cvtColor(currentFrame, trackingResults, CV_GRAY2BGR);
 
 		goodFeaturesToTrack(previousFrame, previousCorners, maxCorners, qualityLevel, minDistance, previousFrame, blockSize, useHarrisDetector);
-//
-		calcOpticalFlowPyrLK(previousFrame, currentFrame, previousCorners, currentCorners, flowStatus, flowError, Size(blockSize, blockSize), 4, termCriteria, derivLambda, OPTFLOW_FARNEBACK_GAUSSIAN);
-		//Draw squares where features are detected
-		for(int i = 0; i < maxCorners; i++) {
-			rectangle(trackingResults, Point(previousCorners[i].x - blockSize/2, previousCorners[i].y - blockSize/2), Point(previousCorners[i].x + blockSize/2, previousCorners[i].y + blockSize/2), PINK);
-			if((uchar)flowStatus[i] == 1) {
-				line(trackingResults, previousCorners[i], currentCorners[i], GREEN, 2, 8, 0);
-			}
-		}
+		//cornerSubPix(previousFrame, previousCorners, Size(10,10), Size(-1,-1), termCriteria);
+		calcOpticalFlowPyrLK(previousFrame, currentFrame, previousCorners, currentCorners, flowStatus, flowError, Size(blockSize, blockSize), 1, termCriteria, derivLambda, OPTFLOW_FARNEBACK_GAUSSIAN);
 
-		//Draw contours if there are any
-		//if (hiearchy.size() > 0) {
-			double max1Index = 0; //biggest blob
-			double max1Area = 0;
-			double max2Index = 0; //second biggest blob
-			double max2Area = 0;
-			//for (int i = 0; i < contours.size(); i++) {
-//				Moment moment = moment(contour[i]);
-//				if(contourArea(contours[i]) > max2Area) {
-//					max2Area = contourArea(contours[i]);
-//					max2Index = i;
-//				} else if (contourArea(contours[i]) > max1Area) {
-//					max1Area = contourArea();
-//					max1Index = i;
-//				}
-//			if (contours.size() > 2) {
-//				if (contours[0].size() > 1) {
-//					drawContours(trackingResults, contours, 0, ORANGE, CV_FILLED);
-//				}
-//			}
 
-//			}
 //			if (contours.size() > 0) {
 //				int index = 0;
 //				for (; index >= 0; index = hiearchy[index][0]) {
@@ -317,35 +296,52 @@ void startVideo(){
 				}
 			}
 
-			//draw the two largest circles if it exit
-			if(max1Radius > 0) {
-				if(max1Center.x > max2Center.x) {
-					//max1 is on the right
-					circle(trackingResults, max1Center, max1Radius, BLUE, 2, 4);
-					circle(trackingResults, max1Center, 4, BLUE, 2, 4);
-					if(max2Radius > 0) {
-						circle(trackingResults, max2Center, max2Radius, ORANGE, 2, 4);
-						circle(trackingResults, max2Center, 4, ORANGE, 2, 4);
-					}
-				} else {
-					//max1 is on the left
-					circle(trackingResults, max1Center, max1Radius, ORANGE, 2, 4);
-					circle(trackingResults, max1Center, 4, ORANGE, 2, 4);
-					if(max2Radius > 0) {
-						circle(trackingResults, max2Center, max2Radius, BLUE, 2, 4);
-						circle(trackingResults, max2Center, 4, BLUE, 2, 4);
-
-					}
+		//Detect and draw the two largest circles that represent hands, if they exist
+		int numberOfHands = 0;
+		int radius_threshold = 10;
+		if(max1Radius > radius_threshold) {
+			numberOfHands += 1;
+			if(max1Center.x > max2Center.x) {
+				//max1 is on the right
+				circle(trackingResults, max1Center, max1Radius, BLUE, 2, 4);
+				circle(trackingResults, max1Center, 4, BLUE, 2, 4);
+				if(max2Radius > radius_threshold) {
+					numberOfHands += 1;
+					circle(trackingResults, max2Center, max2Radius, ORANGE, 2, 4);
+					circle(trackingResults, max2Center, 4, ORANGE, 2, 4);
+				}
+			} else {
+				//max1 is on the left
+				circle(trackingResults, max1Center, max1Radius, ORANGE, 2, 4);
+				circle(trackingResults, max1Center, 4, ORANGE, 2, 4);
+				if(max2Radius > radius_threshold) {
+					numberOfHands += 1;
+					circle(trackingResults, max2Center, max2Radius, BLUE, 2, 4);
+					circle(trackingResults, max2Center, 4, BLUE, 2, 4);
 				}
 			}
+		}
 
-		//}
+
+		//assign features to hands and draw them appropriately
+		if (numberOfHands == 0) {
+			continue;
+		}
+
+		for(int i = 0; i < maxCorners; i++) {
+			rectangle(trackingResults, Point(previousCorners[i].x - blockSize/2, previousCorners[i].y - blockSize/2), Point(previousCorners[i].x + blockSize/2, previousCorners[i].y + blockSize/2), PINK);
+			if((uchar)flowStatus[i] == 1) {
+				line(trackingResults, previousCorners[i], currentCorners[i], GREEN, 2, 8, 0);
+			}
+		}
 
 		imshow("Tracked", trackingResults);
+		if(save_video){
+			//TODO: save video
+		}
 
 		previousFrame = currentFrame;
 		currentCorners = previousCorners;
-
 	}
 
 	//Clean up before leaving
@@ -358,6 +354,20 @@ void startVideo(){
 		pgrCam.StopCapture();
 		pgrCam.Disconnect();
 	}
+}
+
+/**
+ * Calculate the distance between two points
+ * */
+float getDistance(const Point2f a, const Point2f b) {
+	return sqrt(pow((a.x - b.x), 2) + pow((a.y - b.y), 2));
+}
+
+/**
+ * Find mean point and standard deviation of a list of 2D points
+ * */
+void findMeanAndStdDev(const vector<Point2f> list, Point2f meanPoint, float* stdDev) {
+
 }
 
 Mat grabImage(){
