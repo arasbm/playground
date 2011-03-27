@@ -843,3 +843,22 @@ Finished building target: ELEC536ProjectTests
  
 
 **** Build Finished ****
+
+**** Build of configuration Debug for project ELEC536ProjectTests ****
+
+make all 
+Building file: ../src/ELEC536ProjectTests.cpp
+Invoking: GCC C++ Compiler
+g++ -I/usr/local/include/opencv -I/usr/include/flycapture/ -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"src/ELEC536ProjectTests.d" -MT"src/ELEC536ProjectTests.d" -o "src/ELEC536ProjectTests.o" "../src/ELEC536ProjectTests.cpp"
+../src/ELEC536ProjectTests.cpp: In function ‘void startVideo()’:
+../src/ELEC536ProjectTests.cpp:165: warning: unused variable ‘fps’
+../src/ELEC536ProjectTests.cpp:166: warning: unused variable ‘totalFrames’
+Finished building: ../src/ELEC536ProjectTests.cpp
+ 
+Building target: ELEC536ProjectTests
+Invoking: GCC C++ Linker
+g++ -L/usr/include/opencv -L/usr/include/flycapture -L/usr/lib -o "ELEC536ProjectTests"  ./src/ELEC536ProjectTests.o   -lcv -lcvaux -lhighgui -lcxcore -lml -lflycapture
+Finished building target: ELEC536ProjectTests
+ 
+
+**** Build Finished ****

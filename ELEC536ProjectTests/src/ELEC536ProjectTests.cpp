@@ -169,7 +169,7 @@ void startVideo(){
 	vector<Point2f> previousCorners;
 	vector<Point2f> currentCorners;
 	vector<uchar> flowStatus;
-	vector<uchar> leftRightStatus;
+	vector<uchar> leftRightStatus; // 0=None, 1=Left, 2=Right
 	vector<float> flowError;
 	TermCriteria termCriteria = TermCriteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.3 );
 	double derivLambda = 0.5; //proportion for impact of "image intensity" as opposed to "derivatives"
@@ -211,6 +211,11 @@ void startVideo(){
 	Scalar BLUE = CV_RGB(51, 153, 255); // use for right hand
 	Scalar OLIVE = CV_RGB(184, 184, 0);
 	Scalar RANDOM_COLOR = CV_RGB(rand()&255, rand()&255, rand()&255 ); //a random color
+
+	//Hand tracking structures
+	int hand_trace_level = 5;
+	Vector<Point2f> leftHandCenters;
+	Vector<Point2f> rightHandCenters;
 
 	char key = 'a';
 	int frame_count = 0;
@@ -266,7 +271,6 @@ void startVideo(){
 		//cornerSubPix(previousFrame, previousCorners, Size(10,10), Size(-1,-1), termCriteria);
 		calcOpticalFlowPyrLK(previousFrame, currentFrame, previousCorners, currentCorners, flowStatus, flowError, Size(blockSize, blockSize), 1, termCriteria, derivLambda, OPTFLOW_FARNEBACK_GAUSSIAN);
 
-
 //			if (contours.size() > 0) {
 //				int index = 0;
 //				for (; index >= 0; index = hiearchy[index][0]) {
@@ -275,26 +279,26 @@ void startVideo(){
 //			}
 
 
-			//Find two largest enclosing circles (hopefully the two hands)
-			Point2f tmpCenter, max1Center, max2Center;
-			float tmpRadius = 0, max1Radius = 0, max2Radius = 0;
-			for (uint i = 0; i < contours.size(); i++) {
-				if(contours[i].size() > 0) {
-					minEnclosingCircle(Mat(contours[i]), tmpCenter, tmpRadius);
-					if (tmpRadius > max1Radius) {
-						if (max1Radius > max2Radius) {
-							max2Radius = max1Radius;
-							max2Center = max1Center;
-						}
-						max1Radius = tmpRadius;
-						max1Center = tmpCenter;
-					} else if (tmpRadius > max2Radius) {
-						//max1Radius is bigger than max2Radius
-						max2Radius = tmpRadius;
-						max2Center = tmpCenter;
+		//Find two largest enclosing circles (hopefully the two hands)
+		Point2f tmpCenter, max1Center, max2Center;
+		float tmpRadius = 0, max1Radius = 0, max2Radius = 0;
+		for (uint i = 0; i < contours.size(); i++) {
+			if(contours[i].size() > 0) {
+				minEnclosingCircle(Mat(contours[i]), tmpCenter, tmpRadius);
+				if (tmpRadius > max1Radius) {
+					if (max1Radius > max2Radius) {
+						max2Radius = max1Radius;
+						max2Center = max1Center;
 					}
+					max1Radius = tmpRadius;
+					max1Center = tmpCenter;
+				} else if (tmpRadius > max2Radius) {
+					//max1Radius is bigger than max2Radius
+					max2Radius = tmpRadius;
+					max2Center = tmpCenter;
 				}
 			}
+		}
 
 		//Detect and draw the two largest circles that represent hands, if they exist
 		int numberOfHands = 0;
@@ -325,7 +329,22 @@ void startVideo(){
 
 		//assign features to hands and draw them appropriately
 		if (numberOfHands == 0) {
-			continue;
+			//Nothing to do
+		} else if (numberOfHands == 1) {
+			//find features that belong to this hand
+			for(int i = 0; i < maxCorners; i++) {
+				if(getDistance(previousCorners[i], max1Center) < max1Radius) {
+					//this point belongs to max1
+					leftRightStatus[i] =
+				}
+				rectangle(trackingResults, Point(previousCorners[i].x - blockSize/2, previousCorners[i].y - blockSize/2), Point(previousCorners[i].x + blockSize/2, previousCorners[i].y + blockSize/2), PINK);
+				if((uchar)flowStatus[i] == 1) {
+					line(trackingResults, previousCorners[i], currentCorners[i], GREEN, 2, 8, 0);
+				}
+			}
+		} else if (numberOfHands == 2){
+			//Assign features closest to hand that is closer (using distance from center)
+
 		}
 
 		for(int i = 0; i < maxCorners; i++) {
