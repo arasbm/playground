@@ -30,7 +30,7 @@ Mat grabImage();
 IplImage* convertImageToOpenCV(Image* pImage);
 
 //Global Settings
-int lower_threshold = 40; //global threshold which can be changed using up and down arrow keys
+int lower_threshold = 20; //global threshold which can be changed using up and down arrow keys
 int upper_threshold = 200;
 bool save_video = false;
 bool display_video = true;
@@ -147,8 +147,9 @@ void initiateCamera(){
  * */
 void process(Mat img) {
 	// cvtColor(currentFrame, currentFrame, CV_RGB2GRAY);
-	medianBlur(img, img, 5);
-	GaussianBlur(img, img, Size(5,5), 1.5, 1.5);
+	medianBlur(img, img, 3);
+	GaussianBlur(img, img, Size(3,3), 1.5, 1.5);
+	//
 	//threshold(img, img, lower_threshold, 255, THRESH_TOZERO);
 	//depthFromDiffusion(&tmp, &previousFrame, 5);
 }
@@ -247,8 +248,8 @@ void startVideo(){
 
 		binaryImg = currentFrame.clone();
 		threshold(binaryImg, binaryImg, lower_threshold, 255, THRESH_BINARY);
-		//findContours(binaryImg, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
-		findContours( binaryImg, contours, RETR_LIST, CV_CHAIN_APPROX_SIMPLE );
+		findContours(binaryImg, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+		//findContours( binaryImg, contours, RETR_TREE, CV_CHAIN_APPROX_SIMPLE );
 
 		//Canny(previousFrame, previousFrame, 0, 30, 3);
 		trackingResults = cvCreateMat(currentFrame.rows, currentFrame.cols, CV_8UC3 );
@@ -280,18 +281,64 @@ void startVideo(){
 //					max1Area = contourArea();
 //					max1Index = i;
 //				}
-			if (contours.size() > 2) {
-				if (contours[0].size() > 1) {
-					drawContours(trackingResults, contours, -1, ORANGE);
+//			if (contours.size() > 2) {
+//				if (contours[0].size() > 1) {
+//					drawContours(trackingResults, contours, 0, ORANGE, CV_FILLED);
+//				}
+//			}
+
+//			}
+//			if (contours.size() > 0) {
+//				int index = 0;
+//				for (; index >= 0; index = hiearchy[index][0]) {
+//					drawContours(trackingResults, contours, index, ORANGE, 1, 4, hiearchy, 0);
+//				}
+//			}
+
+
+			//Find two largest enclosing circles (hopefully the two hands)
+			Point2f tmpCenter, max1Center, max2Center;
+			float tmpRadius = 0, max1Radius = 0, max2Radius = 0;
+			for (uint i = 0; i < contours.size(); i++) {
+				if(contours[i].size() > 0) {
+					minEnclosingCircle(Mat(contours[i]), tmpCenter, tmpRadius);
+					if (tmpRadius > max1Radius) {
+						if (max1Radius > max2Radius) {
+							max2Radius = max1Radius;
+							max2Center = max1Center;
+						}
+						max1Radius = tmpRadius;
+						max1Center = tmpCenter;
+					} else if (tmpRadius > max2Radius) {
+						//max1Radius is bigger than max2Radius
+						max2Radius = tmpRadius;
+						max2Center = tmpCenter;
+					}
 				}
 			}
 
-			//}
-			//int index = 0;
-			//for (; index >= 0; index = hiearchy[index][0]) {
-			//	drawContours(trackingResults, contours, 0, ORANGE, 1, 4, hiearchy, 0);
+			//draw the two largest circles if it exit
+			if(max1Radius > 0) {
+				if(max1Center.x > max2Center.x) {
+					//max1 is on the right
+					circle(trackingResults, max1Center, max1Radius, BLUE, 2, 4);
+					circle(trackingResults, max1Center, 4, BLUE, 2, 4);
+					if(max2Radius > 0) {
+						circle(trackingResults, max2Center, max2Radius, ORANGE, 2, 4);
+						circle(trackingResults, max2Center, 4, ORANGE, 2, 4);
+					}
+				} else {
+					//max1 is on the left
+					circle(trackingResults, max1Center, max1Radius, ORANGE, 2, 4);
+					circle(trackingResults, max1Center, 4, ORANGE, 2, 4);
+					if(max2Radius > 0) {
+						circle(trackingResults, max2Center, max2Radius, BLUE, 2, 4);
+						circle(trackingResults, max2Center, 4, BLUE, 2, 4);
 
-			//}
+					}
+				}
+			}
+
 		//}
 
 		imshow("Tracked", trackingResults);
