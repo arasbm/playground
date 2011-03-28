@@ -33,10 +33,11 @@ void initiateCamera();
 void startVideo();
 float getDistance(const Point2f a, const Point2f b);
 void findMeanAndStdDev(const vector<Point2f> list, Point2f meanPoint, float* stdDev);
+void findGoodFeatures(Mat frame1, Mat frame2);
 Mat grabImage();
 IplImage* convertImageToOpenCV(Image* pImage);
 
-//Global Settings
+/*** Global settings and modes ***/
 int lower_threshold = 15; //global threshold which can be changed using up and down arrow keys
 int upper_threshold = 200;
 bool save_video = false;
@@ -44,14 +45,14 @@ bool display_video = true;
 bool subtract_background = false;
 bool use_pgr_camera = true;
 
-//PGR variables
+/** PGR variables **/
 Camera pgrCam;
 PGRGuid guid;
 
-//OpenCV variables
+/** OpenCV variables **/
 CvPoint mouseLocation;
 
-//Define some nice RGB colors for dark background
+/** Define some nice RGB colors for dark background **/
 Scalar YELLOW = CV_RGB(255, 255, 51);
 Scalar ORANGE = CV_RGB(255, 153, 51); //use for left hand
 Scalar RED = CV_RGB(255, 51, 51);
@@ -61,13 +62,27 @@ Scalar BLUE = CV_RGB(51, 153, 255); // use for right hand
 Scalar OLIVE = CV_RGB(184, 184, 0);
 Scalar RANDOM_COLOR = CV_RGB(rand()&255, rand()&255, rand()&255 ); //a random color
 
-//Hand tracking structures (temporal tracking window)
+/** Hand tracking structures (temporal tracking window) **/
 uint feature_temp_window = 3; //Number of frames to look at including current frame to track features
 uint hand_temp_window = 5; //Number of frames to keep track of hand
 vector<Point2f> leftHandCenter;
 vector<Point2f> rightHandCenter;
 vector<int> leftHandRadius;
 vector<int> rightHandRadius;
+
+/** goodFeaturesToTrack structure and settings **/
+vector<Point2f> previousCorners;
+vector<Point2f> currentCorners;
+vector<uchar> flowStatus;
+vector<uchar> leftRightStatus; // 0=None, 1=Left, 2=Right
+vector<float> flowError;
+TermCriteria termCriteria = TermCriteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.3 );
+double derivLambda = 0.5; //proportion for impact of "image intensity" as opposed to "derivatives"
+int maxCorners = 16;
+double qualityLevel = 0.01;
+double minDistance = 10;
+int blockSize = 16;
+bool useHarrisDetector = false; //its either harris or cornerMinEigenVal
 
 int main(int argc, char* argv[]) {
 	cout << "Starting ELEC536 Grab and Release Project" << endl;
@@ -248,6 +263,12 @@ void processKey(char key) {
 	}
 }
 
+void findGoodFeatures(Mat frame1, Mat frame2) {
+	goodFeaturesToTrack(frame1, previousCorners, maxCorners, qualityLevel, minDistance, frame1, blockSize, useHarrisDetector);
+	//cornerSubPix(previousFrame, previousCorners, Size(10,10), Size(-1,-1), termCriteria);
+	calcOpticalFlowPyrLK(frame1, frame2, previousCorners, currentCorners, flowStatus, flowError, Size(blockSize, blockSize), 1, termCriteria, derivLambda, OPTFLOW_FARNEBACK_GAUSSIAN);
+}
+
 /**
  * This is the main loop function that loads and process images one by one
  * The function first attempts to connect to a PGR camera, if that fails it loads
@@ -257,20 +278,6 @@ void startVideo(){
 	VideoCapture video("../../Desktop/grab_and_release_data/Grab_Release_Mar15.avi");
 	double fps = 30;
 	int totalFrames = 0;
-
-	//goodFeaturesToTrack structure and settings
-	vector<Point2f> previousCorners;
-	vector<Point2f> currentCorners;
-	vector<uchar> flowStatus;
-	vector<uchar> leftRightStatus; // 0=None, 1=Left, 2=Right
-	vector<float> flowError;
-	TermCriteria termCriteria = TermCriteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.3 );
-	double derivLambda = 0.5; //proportion for impact of "image intensity" as opposed to "derivatives"
-	int maxCorners = 16;
-	double qualityLevel = 0.01;
-	double minDistance = 10;
-	int blockSize = 16;
-	bool useHarrisDetector = false; //its either harris or cornerMinEigenVal
 
 	//Contour detection structures
 	vector<vector<cv::Point> > contours;
@@ -292,7 +299,6 @@ void startVideo(){
 	Mat currentFrame;
 	Mat trackingResults;
 	Mat binaryImg; //binary image for finding contours of the hand
-	Mat tmpMono;
 	Mat tmpColor;
 
 	char key = 'a';
@@ -308,7 +314,7 @@ void startVideo(){
 
 		//do all the pre-processing
 		process(currentFrame);
-		imshow("Processed", currentFrame);
+		//imshow("Processed", currentFrame);
 
 		//need at least one previous frame to process
 		if(frame_count == 0) {
@@ -329,14 +335,11 @@ void startVideo(){
 		//imshow("Binary", binaryImg);
 		findContours(binaryImg, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		//findContours( binaryImg, contours, RETR_TREE, CV_CHAIN_APPROX_SIMPLE );
+		findGoodFeatures(previousFrame, currentFrame);
 
 		//Canny(previousFrame, previousFrame, 0, 30, 3);
 		trackingResults = cvCreateMat(currentFrame.rows, currentFrame.cols, CV_8UC3 );
 		cvtColor(currentFrame, trackingResults, CV_GRAY2BGR);
-
-		goodFeaturesToTrack(previousFrame, previousCorners, maxCorners, qualityLevel, minDistance, previousFrame, blockSize, useHarrisDetector);
-		//cornerSubPix(previousFrame, previousCorners, Size(10,10), Size(-1,-1), termCriteria);
-		calcOpticalFlowPyrLK(previousFrame, currentFrame, previousCorners, currentCorners, flowStatus, flowError, Size(blockSize, blockSize), 1, termCriteria, derivLambda, OPTFLOW_FARNEBACK_GAUSSIAN);
 
 //			if (contours.size() > 0) {
 //				int index = 0;
@@ -430,7 +433,6 @@ void startVideo(){
 	currentFrame.release();
 	trackingResults.release();
 	tmpColor.release();
-	tmpMono.release();
 	if(use_pgr_camera){
 		pgrCam.StopCapture();
 		pgrCam.Disconnect();
