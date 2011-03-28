@@ -1,5 +1,5 @@
 /****************************************************
-* Name        : ELEC536Assignment2.cpp
+* Name        : ELEC536Project.cpp
 * Author      : Aras Balali Moghaddam
 * Version     : 0.1
 *****************************************************/
@@ -17,8 +17,8 @@
 
 //Standard includes
 #include <cmath>
-#include <queue>
-#include <list>
+//#include <queue>
+//#include <list>
 
 using namespace std;
 using namespace cv;
@@ -27,15 +27,17 @@ using namespace FlyCapture2;
 void process(Mat img);
 void processKey(char key);
 void addHand(bool left, Point2f center, float radius);
+void addFeatureMeanStdDev(bool left, Point2f mean, float stdDev);
 void opencvConnectedComponent(Mat* src, Mat* dst);
 void depthFromDiffusion(Mat img, int size);
 void initiateCamera();
 void startVideo();
-float getDistance(const Point2f a, const Point2f b);
-void findMeanAndStdDev(const vector<Point2f> list, Point2f meanPoint, float* stdDev);
+void meanAndStdDevExtract();
 void findGoodFeatures(Mat frame1, Mat frame2);
 void assignFeaturesToHands();
 void drawFeatures(Mat img);
+void drawMeanAndStdDev(Mat img);
+float getDistance(const Point2f a, const Point2f b);
 int numberOfHands();
 Mat grabImage();
 IplImage* convertImageToOpenCV(Image* pImage);
@@ -72,6 +74,10 @@ vector<Point2f> leftHandCenter;
 vector<Point2f> rightHandCenter;
 vector<int> leftHandRadius;
 vector<int> rightHandRadius;
+vector<Point2f> leftHandFeatureMean;
+vector<Point2f> rightHandFeatureMean;
+vector<float> leftHandFeatureStdDev;
+vector<float> rightHandFeatureStdDev;
 
 /** goodFeaturesToTrack structure and settings **/
 vector<Point2f> previousCorners;
@@ -108,6 +114,7 @@ int main(int argc, char* argv[]) {
 
 /**
  * Add location and radius of a hand to the temporal tracking window
+ *  if the vector grow larger than hand_temp_window delete the last element
  * */
 void addHand(bool left, Point2f center, float radius) {
 	if(left) {
@@ -123,6 +130,28 @@ void addHand(bool left, Point2f center, float radius) {
 		if(rightHandRadius.size() > hand_temp_window) {
 			rightHandCenter.erase(rightHandCenter.begin() + 0);
 			rightHandRadius.erase(rightHandRadius.begin() + 0);
+		}
+	}
+}
+
+/**
+ * Add a feature to history and if the vector grow larger than
+ * feature_temp_window delete the last element
+ * */
+void addFeatureMeanStdDev(bool left, Point2f mean, float stdDev) {
+	if(left) {
+		leftHandFeatureMean.push_back(mean);
+		leftHandFeatureStdDev.push_back(stdDev);
+		if(leftHandFeatureMean.size() > feature_temp_window) {
+			leftHandFeatureMean.erase(leftHandFeatureMean.begin() + 0);
+			leftHandFeatureStdDev.erase(leftHandFeatureStdDev.begin() + 0);
+		}
+	} else {
+		rightHandFeatureMean.push_back(mean);
+		rightHandFeatureStdDev.push_back(stdDev);
+		if(rightHandFeatureMean.size() > feature_temp_window) {
+			rightHandFeatureMean.erase(rightHandFeatureMean.begin() + 0);
+			rightHandFeatureStdDev.erase(rightHandFeatureStdDev.begin() + 0);
 		}
 	}
 }
@@ -406,6 +435,8 @@ void startVideo(){
 			drawHandTrace(trackingResults);
 			assignFeaturesToHands();
 			drawFeatures(trackingResults);
+			meanAndStdDevExtract();
+			drawMeanAndStdDev(trackingResults);
 
 		}
 
@@ -467,6 +498,21 @@ void drawFeatures(Mat img) {
 }
 
 /**
+ * Draw a circle for mean and stdDev and a trace of their changes over
+ * the feature tracking temporal window
+ * */
+void drawMeanAndStdDev(Mat img) {
+	int lastLeftIndex = leftHandFeatureMean.size() - 1;
+	int lastRightIndex = rightHandFeatureMean.size() - 1;
+	if(lastLeftIndex >= 0) {
+		circle(img, leftHandFeatureMean.at(lastLeftIndex), leftHandFeatureStdDev.at(lastLeftIndex), YELLOW, 1, 4, 0);
+	}
+	if(lastRightIndex >= 0) {
+		circle(img, rightHandFeatureMean.at(lastRightIndex), rightHandFeatureStdDev.at(lastRightIndex), YELLOW, 1, 4, 0);
+	}
+}
+
+/**
  * assign features to hand(s) assuming that at least one hand exist
  * */
 void assignFeaturesToHands() {
@@ -495,10 +541,52 @@ float getDistance(const Point2f a, const Point2f b) {
 }
 
 /**
- * Find mean point and standard deviation of a list of 2D points
+ * Find mean point and standard deviation of features for each hand
+ * @Precondition: assignFeatureToHands is executed
  * */
-void findMeanAndStdDev(const vector<Point2f> list, Point2f meanPoint, float* stdDev) {
+void meanAndStdDevExtract() {
+	//first calculate the mean
+	Point2f leftMean, rightMean;
+	uint leftCount = 0, rightCount = 0;
+	for(int i = 0; i < maxCorners; i++) {
+		if(leftRightStatus[i] == 1) {
+			//Left hand
+			leftMean += currentCorners[i];
+			leftCount++;
+		} else if(leftRightStatus[i] == 2) {
+			//Right hand
+			rightMean += currentCorners[i];
+			rightCount++;
+		} else {
+			//well, nothing if the feature is not assigned to a hand
+		}
+	}
 
+	leftMean = Point2f(leftMean.x / leftCount, leftMean.y / leftCount);
+	rightMean = Point2f(rightMean.x / rightCount, rightMean.y / rightCount);
+
+	//Now that we have the mean, calculate stdDev
+	float leftStdDev = 0, rightStdDev = 0;
+	for(int i = 0; i < maxCorners; i++) {
+		if(leftRightStatus[i] == 1) {
+			//Left hand
+			leftStdDev += getDistance(leftMean, currentCorners[i]);
+		} else if(leftRightStatus[i] == 2) {
+			//Right hand
+			rightStdDev += getDistance(rightMean, currentCorners[i]);
+		} else {
+			//feature is not assigned to a hand
+		}
+	}
+	leftStdDev = leftStdDev / leftCount;
+	rightStdDev = rightStdDev / rightCount;
+
+	if(leftCount > 0) {
+		addFeatureMeanStdDev(true, leftMean, leftStdDev);
+	}
+	if(rightCount > 0) {
+		addFeatureMeanStdDev(false, rightMean, rightStdDev);
+	}
 }
 
 Mat grabImage(){
