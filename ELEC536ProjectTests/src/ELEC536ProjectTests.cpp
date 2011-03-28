@@ -15,13 +15,18 @@
 //Flycapture SDK
 #include "FlyCapture2.h"
 
+//Standard includes
 #include <cmath>
+#include <queue>
+#include <list>
 
 using namespace std;
 using namespace cv;
 using namespace FlyCapture2;
 
 void process(Mat img);
+void processKey(char key);
+void addHand(bool left, Point2f center, float radius);
 void opencvConnectedComponent(Mat* src, Mat* dst);
 void depthFromDiffusion(Mat img, int size);
 void initiateCamera();
@@ -46,6 +51,24 @@ PGRGuid guid;
 //OpenCV variables
 CvPoint mouseLocation;
 
+//Define some nice RGB colors for dark background
+Scalar YELLOW = CV_RGB(255, 255, 51);
+Scalar ORANGE = CV_RGB(255, 153, 51); //use for left hand
+Scalar RED = CV_RGB(255, 51, 51);
+Scalar PINK = CV_RGB(255, 51, 153);
+Scalar GREEN = CV_RGB(153, 255, 51);
+Scalar BLUE = CV_RGB(51, 153, 255); // use for right hand
+Scalar OLIVE = CV_RGB(184, 184, 0);
+Scalar RANDOM_COLOR = CV_RGB(rand()&255, rand()&255, rand()&255 ); //a random color
+
+//Hand tracking structures (temporal tracking window)
+uint feature_temp_window = 3; //Number of frames to look at including current frame to track features
+uint hand_temp_window = 5; //Number of frames to keep track of hand
+vector<Point2f> leftHandCenter;
+vector<Point2f> rightHandCenter;
+vector<int> leftHandRadius;
+vector<int> rightHandRadius;
+
 int main(int argc, char* argv[]) {
 	cout << "Starting ELEC536 Grab and Release Project" << endl;
 	cvNamedWindow( "Source", CV_WINDOW_AUTOSIZE ); 		//monochrome source
@@ -65,6 +88,55 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
+/**
+ * Add location and radius of a hand to the temporal tracking window
+ * */
+void addHand(bool left, Point2f center, float radius) {
+	if(left) {
+		leftHandCenter.push_back(center);
+		leftHandRadius.push_back(radius);
+		if(leftHandRadius.size() > hand_temp_window) {
+			leftHandCenter.erase(leftHandCenter.begin() + 0);
+			leftHandRadius.erase(leftHandRadius.begin() + 0);
+		}
+	} else {
+		rightHandCenter.push_back(center);
+		rightHandRadius.push_back(radius);
+		if(rightHandRadius.size() > hand_temp_window) {
+			rightHandCenter.erase(rightHandCenter.begin() + 0);
+			rightHandRadius.erase(rightHandRadius.begin() + 0);
+		}
+	}
+}
+
+/**
+ * Draw the circles around the hands and the trace of them moving
+ * during the temporal window that they are tracked
+ * */
+void drawHandTrace(Mat img) {
+	//left hand
+	for(uint i = 1; i < leftHandCenter.size(); i++) {
+		if(i == leftHandCenter.size() - 1) {
+			//if last element exist
+			circle(img, leftHandCenter.at(i), leftHandRadius.at(i) , ORANGE, 2, 4);
+			circle(img, leftHandCenter.at(i), 4, ORANGE, 2, 4);
+		} else {
+			line(img, leftHandCenter.at(i - 1), leftHandCenter.at(i), ORANGE, 2, 4, 0);
+		}
+	}
+
+	//right hand
+	for(uint i = 1; i < rightHandCenter.size(); i++) {
+		if(i == rightHandCenter.size() - 1) {
+			//if last element exist
+			circle(img, rightHandCenter.at(i), rightHandRadius.at(i) , BLUE, 2, 4);
+			circle(img, rightHandCenter.at(i), 4, BLUE, 2, 4);
+		} else {
+			line(img, rightHandCenter.at(i - 1), rightHandCenter.at(i), BLUE, 2, 4, 0);
+		}
+	}
+
+}
 /**
  * An implementation of connected components labeling using
  * opencv findContour function
@@ -160,8 +232,29 @@ void process(Mat img) {
 	//bilateralFilter(img, img, 3, 20, 5, BORDER_CONSTANT);
 }
 
+/**
+ * This functions process the input key and set application mode accordingly
+ * */
+void processKey(char key) {
+	switch(key) {
+		case '1':
+			break;
+		case '2':
+			break;
+		case 'a':
+			break;
+		default:
+			break;
+	}
+}
+
+/**
+ * This is the main loop function that loads and process images one by one
+ * The function first attempts to connect to a PGR camera, if that fails it loads
+ * a video file from predefined path
+ * */
 void startVideo(){
-	VideoCapture video("/home/zooby/Desktop/grab_and_release_data/Grab_Release_Mar15.avi");
+	VideoCapture video("../../Desktop/grab_and_release_data/Grab_Release_Mar15.avi");
 	double fps = 30;
 	int totalFrames = 0;
 
@@ -177,7 +270,7 @@ void startVideo(){
 	double qualityLevel = 0.01;
 	double minDistance = 10;
 	int blockSize = 16;
-	bool useHarrisDetector = true; //its either harris or cornerMinEigenVal
+	bool useHarrisDetector = false; //its either harris or cornerMinEigenVal
 
 	//Contour detection structures
 	vector<vector<cv::Point> > contours;
@@ -202,21 +295,6 @@ void startVideo(){
 	Mat tmpMono;
 	Mat tmpColor;
 
-	//Define some nice BGR colors for dark background
-	Scalar YELLOW = CV_RGB(255, 255, 51);
-	Scalar ORANGE = CV_RGB(255, 153, 51); //use for left hand
-	Scalar RED = CV_RGB(255, 51, 51);
-	Scalar PINK = CV_RGB(255, 51, 153);
-	Scalar GREEN = CV_RGB(153, 255, 51);
-	Scalar BLUE = CV_RGB(51, 153, 255); // use for right hand
-	Scalar OLIVE = CV_RGB(184, 184, 0);
-	Scalar RANDOM_COLOR = CV_RGB(rand()&255, rand()&255, rand()&255 ); //a random color
-
-	//Hand tracking structures
-	int hand_trace_level = 5;
-	Vector<Point2f> leftHandCenters;
-	Vector<Point2f> rightHandCenters;
-
 	char key = 'a';
 	int frame_count = 0;
 	while(key != 'q') {
@@ -230,7 +308,7 @@ void startVideo(){
 
 		//do all the pre-processing
 		process(currentFrame);
-		//imshow("Processed", currentFrame);
+		imshow("Processed", currentFrame);
 
 		//need at least one previous frame to process
 		if(frame_count == 0) {
@@ -239,18 +317,7 @@ void startVideo(){
 		frame_count++;
 
 		key = cvWaitKey(10);
-		switch(key) {
-			case '1':
-				break;
-			case '2':
-				break;
-			case 'a':
-				break;
-			default:
-				break;
-		}
-
-		// previousFrame = currentFrame.clone();
+		processKey(key);
 
 		/**
 		 * Prepare the binary image for tracking hands as the two largest blobs in the scene
@@ -259,7 +326,7 @@ void startVideo(){
 		threshold(binaryImg, binaryImg, lower_threshold, 255, THRESH_BINARY);
 		medianBlur(binaryImg, binaryImg, 21);
 		//adaptiveThreshold(binaryImg, binaryImg, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 3, 10); //adaptive thresholding not works so well here
-		imshow("Binary", binaryImg);
+		//imshow("Binary", binaryImg);
 		findContours(binaryImg, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		//findContours( binaryImg, contours, RETR_TREE, CV_CHAIN_APPROX_SIMPLE );
 
@@ -277,7 +344,6 @@ void startVideo(){
 //					drawContours(trackingResults, contours, index, ORANGE, 1, 4, hiearchy, 0);
 //				}
 //			}
-
 
 		//Find two largest enclosing circles (hopefully the two hands)
 		Point2f tmpCenter, max1Center, max2Center;
@@ -300,52 +366,48 @@ void startVideo(){
 			}
 		}
 
-		//Detect and draw the two largest circles that represent hands, if they exist
-		int numberOfHands = 0;
+		//Detect the two largest circles that represent hands, if they exist
 		int radius_threshold = 10;
 		if(max1Radius > radius_threshold) {
-			numberOfHands += 1;
 			if(max1Center.x > max2Center.x) {
 				//max1 is on the right
-				circle(trackingResults, max1Center, max1Radius, BLUE, 2, 4);
-				circle(trackingResults, max1Center, 4, BLUE, 2, 4);
+				addHand(false, max1Center, max1Radius);
 				if(max2Radius > radius_threshold) {
-					numberOfHands += 1;
-					circle(trackingResults, max2Center, max2Radius, ORANGE, 2, 4);
-					circle(trackingResults, max2Center, 4, ORANGE, 2, 4);
+					//max2 is on the left
+					addHand(true, max2Center, max2Radius);
 				}
 			} else {
 				//max1 is on the left
-				circle(trackingResults, max1Center, max1Radius, ORANGE, 2, 4);
-				circle(trackingResults, max1Center, 4, ORANGE, 2, 4);
+				addHand(true, max1Center, max1Radius);
 				if(max2Radius > radius_threshold) {
-					numberOfHands += 1;
-					circle(trackingResults, max2Center, max2Radius, BLUE, 2, 4);
-					circle(trackingResults, max2Center, 4, BLUE, 2, 4);
+					//max2 is on the right
+					addHand(false, max2Center, max2Radius);
 				}
 			}
 		}
 
+		//draw the two hands and their trace
+		drawHandTrace(trackingResults);
 
 		//assign features to hands and draw them appropriately
-		if (numberOfHands == 0) {
-			//Nothing to do
-		} else if (numberOfHands == 1) {
-			//find features that belong to this hand
-			for(int i = 0; i < maxCorners; i++) {
-				if(getDistance(previousCorners[i], max1Center) < max1Radius) {
-					//this point belongs to max1
-					leftRightStatus[i] =
-				}
-				rectangle(trackingResults, Point(previousCorners[i].x - blockSize/2, previousCorners[i].y - blockSize/2), Point(previousCorners[i].x + blockSize/2, previousCorners[i].y + blockSize/2), PINK);
-				if((uchar)flowStatus[i] == 1) {
-					line(trackingResults, previousCorners[i], currentCorners[i], GREEN, 2, 8, 0);
-				}
-			}
-		} else if (numberOfHands == 2){
-			//Assign features closest to hand that is closer (using distance from center)
-
-		}
+//		if (numberOfHands == 0) {
+//			//Nothing to do
+//		} else if (numberOfHands == 1) {
+//			//find features that belong to this hand
+//			for(int i = 0; i < maxCorners; i++) {
+//				if(getDistance(previousCorners[i], max1Center) < max1Radius) {
+//					//this point belongs to max1
+//					//leftRightStatus[i] =
+//				}
+//				rectangle(trackingResults, Point(previousCorners[i].x - blockSize/2, previousCorners[i].y - blockSize/2), Point(previousCorners[i].x + blockSize/2, previousCorners[i].y + blockSize/2), PINK);
+//				if((uchar)flowStatus[i] == 1) {
+//					line(trackingResults, previousCorners[i], currentCorners[i], GREEN, 2, 8, 0);
+//				}
+//			}
+//		} else if (numberOfHands == 2){
+//			//Assign features closest to hand that is closer (using distance from center)
+//
+//		}
 
 		for(int i = 0; i < maxCorners; i++) {
 			rectangle(trackingResults, Point(previousCorners[i].x - blockSize/2, previousCorners[i].y - blockSize/2), Point(previousCorners[i].x + blockSize/2, previousCorners[i].y + blockSize/2), PINK);
