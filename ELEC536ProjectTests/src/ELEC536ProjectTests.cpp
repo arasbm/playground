@@ -28,10 +28,13 @@ void process(Mat img);
 void processKey(char key);
 void addHand(bool left, Point2f center, float radius);
 void addFeatureMeanStdDev(bool left, Point2f mean, float stdDev);
+void findHands(vector<vector<cv::Point> > contours);
 void opencvConnectedComponent(Mat* src, Mat* dst);
 void depthFromDiffusion(Mat img, int size);
 void initiateCamera();
 void startVideo();
+void checkGrab();
+void checkRelease();
 void meanAndStdDevExtract();
 void findGoodFeatures(Mat frame1, Mat frame2);
 void assignFeaturesToHands();
@@ -45,10 +48,15 @@ IplImage* convertImageToOpenCV(Image* pImage);
 /*** Global settings and modes ***/
 int lower_threshold = 15; //global threshold which can be changed using up and down arrow keys
 int upper_threshold = 200;
-bool save_video = false;
+bool save_input_video = false;
+bool save_output_video = false;
 bool display_video = true;
 bool subtract_background = false;
 bool use_pgr_camera = true;
+
+bool left_grab_mode = false;
+bool right_grab_mode = false;
+int grab_std_dev_factor = 6; // the rate at which stdDev is expected to change during grab and release gesture
 
 /** PGR variables **/
 Camera pgrCam;
@@ -65,10 +73,10 @@ Scalar PINK = CV_RGB(255, 51, 153);
 Scalar GREEN = CV_RGB(153, 255, 51);
 Scalar BLUE = CV_RGB(51, 153, 255); // use for right hand
 Scalar OLIVE = CV_RGB(184, 184, 0);
-Scalar RANDOM_COLOR = CV_RGB(rand()&255, rand()&255, rand()&255 ); //a random color
+Scalar RANDOM_COLOR = CV_RGB( rand()&255, rand()&255, rand()&255 ); //a random color
 
 /** Hand tracking structures (temporal tracking window) **/
-uint feature_temp_window = 3; //Number of frames to look at including current frame to track features
+uint feature_temp_window = 5; //Number of frames to look at including current frame to track features
 uint hand_temp_window = 5; //Number of frames to keep track of hand
 vector<Point2f> leftHandCenter;
 vector<Point2f> rightHandCenter;
@@ -157,6 +165,58 @@ void addFeatureMeanStdDev(bool left, Point2f mean, float stdDev) {
 }
 
 /**
+ * Check for grab gesture
+ * */
+void checkGrab() {
+	int leftWindow = leftHandFeatureStdDev.size();
+	int rightWindow = rightHandFeatureStdDev.size();
+	if (leftWindow > 3) {
+		//check that standard deviation has been decreasing:
+		if (leftHandFeatureStdDev.at(leftWindow - 2) - leftHandFeatureStdDev.at(leftWindow - 1) > grab_std_dev_factor ) {
+			if (leftHandFeatureStdDev.at(leftWindow - 3) - leftHandFeatureStdDev.at(leftWindow - 2) > grab_std_dev_factor ) {
+				//two consecutive decrease
+				left_grab_mode = true;
+			}
+		}
+	}
+	if (rightWindow > 3) {
+		//check that standard deviation has been decreasing:
+		if (rightHandFeatureStdDev.at(rightWindow - 2) - rightHandFeatureStdDev.at(rightWindow - 1) > grab_std_dev_factor ) {
+			if (rightHandFeatureStdDev.at(rightWindow - 3) - rightHandFeatureStdDev.at(rightWindow - 2) > grab_std_dev_factor ) {
+				//two consecutive decrease
+				right_grab_mode = true;
+			}
+		}
+	}
+}
+
+/**
+ * Check for release gesture
+ * */
+void checkRelease() {
+	int leftWindow = leftHandFeatureStdDev.size();
+	int rightWindow = rightHandFeatureStdDev.size();
+	if (leftWindow > 3) {
+		//check that standard deviation has been decreasing:
+		if (leftHandFeatureStdDev.at(leftWindow - 1) - leftHandFeatureStdDev.at(leftWindow - 2) > grab_std_dev_factor ) {
+			if (leftHandFeatureStdDev.at(leftWindow - 2) - leftHandFeatureStdDev.at(leftWindow - 3) > grab_std_dev_factor ) {
+				//two consecutive decrease
+				left_grab_mode = false;
+			}
+		}
+	}
+	if (rightWindow > 3) {
+		//check that standard deviation has been decreasing:
+		if (rightHandFeatureStdDev.at(rightWindow - 1) - rightHandFeatureStdDev.at(rightWindow - 2) > grab_std_dev_factor ) {
+			if (rightHandFeatureStdDev.at(rightWindow - 2) - rightHandFeatureStdDev.at(rightWindow - 3) > grab_std_dev_factor ) {
+				//two consecutive decrease
+				right_grab_mode = false;
+			}
+		}
+	}
+}
+
+/**
  * Draw the circles around the hands and the trace of them moving
  * during the temporal window that they are tracked
  * */
@@ -166,7 +226,11 @@ void drawHandTrace(Mat img) {
 		if(i == leftHandCenter.size() - 1) {
 			//if last element exist
 			circle(img, leftHandCenter.at(i), leftHandRadius.at(i) , ORANGE, 2, 4);
-			circle(img, leftHandCenter.at(i), 4, ORANGE, 2, 4);
+			if(left_grab_mode) {
+				circle(img, leftHandCenter.at(i), 30, ORANGE, 40, 4);
+			} else {
+				circle(img, leftHandCenter.at(i), 4, ORANGE, 2, 4);
+			}
 		} else {
 			line(img, leftHandCenter.at(i - 1), leftHandCenter.at(i), ORANGE, 2, 4, 0);
 		}
@@ -177,13 +241,17 @@ void drawHandTrace(Mat img) {
 		if(i == rightHandCenter.size() - 1) {
 			//if last element exist
 			circle(img, rightHandCenter.at(i), rightHandRadius.at(i) , BLUE, 2, 4);
-			circle(img, rightHandCenter.at(i), 4, BLUE, 2, 4);
+			if(right_grab_mode) {
+				circle(img, rightHandCenter.at(i), 30, BLUE, 40, 4);
+			} else {
+				circle(img, rightHandCenter.at(i), 4, BLUE, 2, 4);
+			}
 		} else {
 			line(img, rightHandCenter.at(i - 1), rightHandCenter.at(i), BLUE, 2, 4, 0);
 		}
 	}
-
 }
+
 /**
  * An implementation of connected components labeling using
  * opencv findContour function
@@ -342,7 +410,7 @@ void startVideo(){
 			video >> tmpColor;
 			cvtColor(tmpColor, currentFrame, CV_RGB2GRAY);
 		}
-		//imshow("Source", currentFrame);
+		imshow("Source", currentFrame);
 
 		//do all the pre-processing
 		process(currentFrame);
@@ -364,7 +432,7 @@ void startVideo(){
 		threshold(binaryImg, binaryImg, lower_threshold, 255, THRESH_BINARY);
 		medianBlur(binaryImg, binaryImg, 21);
 		//adaptiveThreshold(binaryImg, binaryImg, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 3, 10); //adaptive thresholding not works so well here
-		//imshow("Binary", binaryImg);
+		imshow("Binary", binaryImg);
 		findContours(binaryImg, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		//findContours( binaryImg, contours, RETR_TREE, CV_CHAIN_APPROX_SIMPLE );
 
@@ -378,57 +446,7 @@ void startVideo(){
 //					drawContours(trackingResults, contours, index, ORANGE, 1, 4, hiearchy, 0);
 //				}
 //			}
-
-		//Find two largest enclosing circles (hopefully the two hands)
-		Point2f tmpCenter, max1Center, max2Center;
-		float tmpRadius = 0, max1Radius = 0, max2Radius = 0;
-		for (uint i = 0; i < contours.size(); i++) {
-			if(contours[i].size() > 0) {
-				minEnclosingCircle(Mat(contours[i]), tmpCenter, tmpRadius);
-				if (tmpRadius > max1Radius) {
-					if (max1Radius > max2Radius) {
-						max2Radius = max1Radius;
-						max2Center = max1Center;
-					}
-					max1Radius = tmpRadius;
-					max1Center = tmpCenter;
-				} else if (tmpRadius > max2Radius) {
-					//max1Radius is bigger than max2Radius
-					max2Radius = tmpRadius;
-					max2Center = tmpCenter;
-				}
-			}
-		}
-
-		//Detect the two largest circles that represent hands, if they exist
-		int radius_threshold = 10;
-		if(max1Radius > radius_threshold) {
-			if(max1Center.x > max2Center.x) {
-				//max1 is on the right
-				addHand(false, max1Center, max1Radius);
-				if(max2Radius > radius_threshold) {
-					//max2 is on the left
-					addHand(true, max2Center, max2Radius);
-				} else {
-					//Clear left hand
-					leftHandCenter.clear();
-					leftHandRadius.clear();
-				}
-			} else {
-				//max1 is on the left
-				addHand(true, max1Center, max1Radius);
-				if(max2Radius > radius_threshold) {
-					//max2 is on the right
-					addHand(false, max2Center, max2Radius);
-				} else {
-					rightHandCenter.clear();
-					rightHandRadius.clear();
-				}
-			}
-		} else {
-			rightHandCenter.clear();
-			rightHandRadius.clear();
-		}
+		findHands(contours);
 
 		if(numberOfHands() > 0) {
 			findGoodFeatures(previousFrame, currentFrame);
@@ -437,11 +455,13 @@ void startVideo(){
 			drawFeatures(trackingResults);
 			meanAndStdDevExtract();
 			drawMeanAndStdDev(trackingResults);
+			checkGrab();
+			checkRelease();
 
 		}
 
 		imshow("Tracked", trackingResults);
-		if(save_video){
+		if(save_input_video){
 			//TODO: save video
 		}
 
@@ -457,6 +477,61 @@ void startVideo(){
 	if(use_pgr_camera){
 		pgrCam.StopCapture();
 		pgrCam.Disconnect();
+	}
+}
+
+/**
+ * Find two largest blobs which hopefully represent the two hands
+ * */
+void findHands(vector<vector<cv::Point> > contours) {
+	Point2f tmpCenter, max1Center, max2Center;
+	float tmpRadius = 0, max1Radius = 0, max2Radius = 0;
+	for (uint i = 0; i < contours.size(); i++) {
+		if(contours[i].size() > 0) {
+			minEnclosingCircle(Mat(contours[i]), tmpCenter, tmpRadius);
+			if (tmpRadius > max1Radius) {
+				if (max1Radius > max2Radius) {
+					max2Radius = max1Radius;
+					max2Center = max1Center;
+				}
+				max1Radius = tmpRadius;
+				max1Center = tmpCenter;
+			} else if (tmpRadius > max2Radius) {
+				//max1Radius is bigger than max2Radius
+				max2Radius = tmpRadius;
+				max2Center = tmpCenter;
+			}
+		}
+	}
+
+	//Detect the two largest circles that represent hands, if they exist
+	int radius_threshold = 10;
+	if(max1Radius > radius_threshold) {
+		if(max1Center.x > max2Center.x) {
+			//max1 is on the right
+			addHand(false, max1Center, max1Radius);
+			if(max2Radius > radius_threshold) {
+				//max2 is on the left
+				addHand(true, max2Center, max2Radius);
+			} else {
+				//Clear left hand
+				leftHandCenter.clear();
+				leftHandRadius.clear();
+			}
+		} else {
+			//max1 is on the left
+			addHand(true, max1Center, max1Radius);
+			if(max2Radius > radius_threshold) {
+				//max2 is on the right
+				addHand(false, max2Center, max2Radius);
+			} else {
+				rightHandCenter.clear();
+				rightHandRadius.clear();
+			}
+		}
+	} else {
+		rightHandCenter.clear();
+		rightHandRadius.clear();
 	}
 }
 
