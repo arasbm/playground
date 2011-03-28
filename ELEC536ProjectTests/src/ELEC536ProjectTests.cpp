@@ -504,11 +504,13 @@ void drawFeatures(Mat img) {
 void drawMeanAndStdDev(Mat img) {
 	int lastLeftIndex = leftHandFeatureMean.size() - 1;
 	int lastRightIndex = rightHandFeatureMean.size() - 1;
-	if(lastLeftIndex >= 0) {
+	if(lastLeftIndex >= 0 && leftHandCenter.size() > 0) {
 		circle(img, leftHandFeatureMean.at(lastLeftIndex), leftHandFeatureStdDev.at(lastLeftIndex), YELLOW, 1, 4, 0);
+		line(img, leftHandFeatureMean.at(lastLeftIndex), leftHandCenter.at(leftHandCenter.size() - 1), YELLOW, 1, 4, 0);
 	}
-	if(lastRightIndex >= 0) {
+	if(lastRightIndex >= 0 && rightHandCenter.size() > 0) {
 		circle(img, rightHandFeatureMean.at(lastRightIndex), rightHandFeatureStdDev.at(lastRightIndex), YELLOW, 1, 4, 0);
+		line(img, rightHandFeatureMean.at(lastRightIndex), rightHandCenter.at(rightHandCenter.size() - 1), YELLOW, 1, 4, 0);
 	}
 }
 
