@@ -34,6 +34,9 @@ void startVideo();
 float getDistance(const Point2f a, const Point2f b);
 void findMeanAndStdDev(const vector<Point2f> list, Point2f meanPoint, float* stdDev);
 void findGoodFeatures(Mat frame1, Mat frame2);
+void assignFeaturesToHands();
+void drawFeatures(Mat img);
+int numberOfHands();
 Mat grabImage();
 IplImage* convertImageToOpenCV(Image* pImage);
 
@@ -335,7 +338,6 @@ void startVideo(){
 		//imshow("Binary", binaryImg);
 		findContours(binaryImg, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		//findContours( binaryImg, contours, RETR_TREE, CV_CHAIN_APPROX_SIMPLE );
-		findGoodFeatures(previousFrame, currentFrame);
 
 		//Canny(previousFrame, previousFrame, 0, 30, 3);
 		trackingResults = cvCreateMat(currentFrame.rows, currentFrame.cols, CV_8UC3 );
@@ -378,6 +380,10 @@ void startVideo(){
 				if(max2Radius > radius_threshold) {
 					//max2 is on the left
 					addHand(true, max2Center, max2Radius);
+				} else {
+					//Clear left hand
+					leftHandCenter.clear();
+					leftHandRadius.clear();
 				}
 			} else {
 				//max1 is on the left
@@ -385,38 +391,22 @@ void startVideo(){
 				if(max2Radius > radius_threshold) {
 					//max2 is on the right
 					addHand(false, max2Center, max2Radius);
+				} else {
+					rightHandCenter.clear();
+					rightHandRadius.clear();
 				}
 			}
+		} else {
+			rightHandCenter.clear();
+			rightHandRadius.clear();
 		}
 
-		//draw the two hands and their trace
-		drawHandTrace(trackingResults);
+		if(numberOfHands() > 0) {
+			findGoodFeatures(previousFrame, currentFrame);
+			drawHandTrace(trackingResults);
+			assignFeaturesToHands();
+			drawFeatures(trackingResults);
 
-		//assign features to hands and draw them appropriately
-//		if (numberOfHands == 0) {
-//			//Nothing to do
-//		} else if (numberOfHands == 1) {
-//			//find features that belong to this hand
-//			for(int i = 0; i < maxCorners; i++) {
-//				if(getDistance(previousCorners[i], max1Center) < max1Radius) {
-//					//this point belongs to max1
-//					//leftRightStatus[i] =
-//				}
-//				rectangle(trackingResults, Point(previousCorners[i].x - blockSize/2, previousCorners[i].y - blockSize/2), Point(previousCorners[i].x + blockSize/2, previousCorners[i].y + blockSize/2), PINK);
-//				if((uchar)flowStatus[i] == 1) {
-//					line(trackingResults, previousCorners[i], currentCorners[i], GREEN, 2, 8, 0);
-//				}
-//			}
-//		} else if (numberOfHands == 2){
-//			//Assign features closest to hand that is closer (using distance from center)
-//
-//		}
-
-		for(int i = 0; i < maxCorners; i++) {
-			rectangle(trackingResults, Point(previousCorners[i].x - blockSize/2, previousCorners[i].y - blockSize/2), Point(previousCorners[i].x + blockSize/2, previousCorners[i].y + blockSize/2), PINK);
-			if((uchar)flowStatus[i] == 1) {
-				line(trackingResults, previousCorners[i], currentCorners[i], GREEN, 2, 8, 0);
-			}
 		}
 
 		imshow("Tracked", trackingResults);
@@ -436,6 +426,64 @@ void startVideo(){
 	if(use_pgr_camera){
 		pgrCam.StopCapture();
 		pgrCam.Disconnect();
+	}
+}
+
+/**
+ * Calculate and return number of hands by checking the size of HandCenter vectors
+ * */
+int numberOfHands() {
+	int numberOfHands = 0;
+	if (leftHandCenter.size() > 0) {
+		numberOfHands++;
+	}
+	if (rightHandCenter.size() > 0) {
+		numberOfHands++;
+	}
+	return numberOfHands;
+}
+
+/**
+ * Draw features based on the hand they belong to
+ * @Precondition: assignFeaturedToHand() is executed and leftRightStatus[i] is filled
+ * */
+void drawFeatures(Mat img) {
+	for(int i = 0; i < maxCorners; i++) {
+		if(leftRightStatus[i] == 1) {
+			// Left hand
+			rectangle(img, Point(currentCorners[i].x - blockSize/2, currentCorners[i].y - blockSize/2), Point(currentCorners[i].x + blockSize/2, currentCorners[i].y + blockSize/2), ORANGE);
+		} else if(leftRightStatus[i] == 2) {
+			// Right hand
+			rectangle(img, Point(currentCorners[i].x - blockSize/2, currentCorners[i].y - blockSize/2), Point(currentCorners[i].x + blockSize/2, currentCorners[i].y + blockSize/2), BLUE);
+		} else {
+			// None
+			rectangle(img, Point(currentCorners[i].x - blockSize/2, currentCorners[i].y - blockSize/2), Point(currentCorners[i].x + blockSize/2, currentCorners[i].y + blockSize/2), PINK);
+		}
+
+		if((uchar)flowStatus[i] == 1) {
+			line(img, currentCorners[i], previousCorners[i], GREEN, 2, 8, 0);
+		}
+	}
+}
+
+/**
+ * assign features to hand(s) assuming that at least one hand exist
+ * */
+void assignFeaturesToHands() {
+	leftRightStatus.clear();
+	for(int i = 0; i < maxCorners; i++) {
+		int lastLeftIndex = leftHandCenter.size() - 1;
+		int lastRightIndex = rightHandCenter.size() - 1;
+		if(lastLeftIndex >= 0 && getDistance(currentCorners[i], leftHandCenter.at(lastLeftIndex)) < leftHandRadius.at(lastLeftIndex)) {
+			//this feature point belongs to left hand
+			leftRightStatus.push_back(1);
+		} else if (lastRightIndex >= 0 && getDistance(currentCorners[i], rightHandCenter.at(lastRightIndex)) < rightHandRadius.at(lastRightIndex)) {
+			//this feature point belongs to right hand
+			leftRightStatus.push_back(2);
+		} else {
+			//this is noise or some other object
+			leftRightStatus.push_back(0); //None
+		}
 	}
 }
 
