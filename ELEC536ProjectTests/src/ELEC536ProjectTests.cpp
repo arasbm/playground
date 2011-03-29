@@ -46,7 +46,7 @@ Mat grabImage();
 IplImage* convertImageToOpenCV(Image* pImage);
 
 /*** Global settings and modes ***/
-int lower_threshold = 15; //global threshold which can be changed using up and down arrow keys
+int lower_threshold = 10; //global threshold which can be changed using up and down arrow keys
 int upper_threshold = 200;
 bool save_input_video = false;
 bool save_output_video = false;
@@ -56,7 +56,7 @@ bool use_pgr_camera = true;
 
 bool left_grab_mode = false;
 bool right_grab_mode = false;
-int grab_std_dev_factor = 6; // the rate at which stdDev is expected to change during grab and release gesture
+int grab_std_dev_factor = 14; // the rate at which stdDev is expected to change during grab and release gesture
 
 /** PGR variables **/
 Camera pgrCam;
@@ -64,6 +64,7 @@ PGRGuid guid;
 
 /** OpenCV variables **/
 CvPoint mouseLocation;
+const Size imageSize = Size(580, 380);
 
 /** Define some nice RGB colors for dark background **/
 Scalar YELLOW = CV_RGB(255, 255, 51);
@@ -76,7 +77,7 @@ Scalar OLIVE = CV_RGB(184, 184, 0);
 Scalar RANDOM_COLOR = CV_RGB( rand()&255, rand()&255, rand()&255 ); //a random color
 
 /** Hand tracking structures (temporal tracking window) **/
-uint feature_temp_window = 5; //Number of frames to look at including current frame to track features
+uint feature_temp_window = 3; //Number of frames to look at including current frame to track features
 uint hand_temp_window = 5; //Number of frames to keep track of hand
 vector<Point2f> leftHandCenter;
 vector<Point2f> rightHandCenter;
@@ -103,9 +104,9 @@ bool useHarrisDetector = false; //its either harris or cornerMinEigenVal
 
 int main(int argc, char* argv[]) {
 	cout << "Starting ELEC536 Grab and Release Project" << endl;
-	cvNamedWindow( "Source", CV_WINDOW_AUTOSIZE ); 		//monochrome source
-	cvNamedWindow( "Processed", CV_WINDOW_AUTOSIZE ); 	//monochrome image after pre-processing
-	cvNamedWindow( "Tracked", CV_WINDOW_AUTOSIZE ); 	//Colour with pretty drawings showing tracking results
+//	cvNamedWindow( "Source", CV_WINDOW_AUTOSIZE ); 		//monochrome source
+//	cvNamedWindow( "Processed", CV_WINDOW_AUTOSIZE ); 	//monochrome image after pre-processing
+	cvNamedWindow( "Tracked", CV_WINDOW_FULLSCREEN ); 	//Colour with pretty drawings showing tracking results
 
 	//Mat result; //working image for most parts
 	//Mat tmp;
@@ -113,8 +114,8 @@ int main(int argc, char* argv[]) {
 
 	startVideo();
 
-	cvDestroyWindow( "Source" );
-	cvDestroyWindow( "Processed" );
+//	cvDestroyWindow( "Source" );
+//	cvDestroyWindow( "Processed" );
 	cvDestroyWindow( "Tracked" );
 	cout << "Exiting ELEC536 Grab and Release Project." << endl;
 	return 0;
@@ -170,7 +171,7 @@ void addFeatureMeanStdDev(bool left, Point2f mean, float stdDev) {
 void checkGrab() {
 	int leftWindow = leftHandFeatureStdDev.size();
 	int rightWindow = rightHandFeatureStdDev.size();
-	if (leftWindow > 3) {
+	if (leftWindow > 2) {
 		//check that standard deviation has been decreasing:
 		if (leftHandFeatureStdDev.at(leftWindow - 2) - leftHandFeatureStdDev.at(leftWindow - 1) > grab_std_dev_factor ) {
 			if (leftHandFeatureStdDev.at(leftWindow - 3) - leftHandFeatureStdDev.at(leftWindow - 2) > grab_std_dev_factor ) {
@@ -179,7 +180,7 @@ void checkGrab() {
 			}
 		}
 	}
-	if (rightWindow > 3) {
+	if (rightWindow > 2) {
 		//check that standard deviation has been decreasing:
 		if (rightHandFeatureStdDev.at(rightWindow - 2) - rightHandFeatureStdDev.at(rightWindow - 1) > grab_std_dev_factor ) {
 			if (rightHandFeatureStdDev.at(rightWindow - 3) - rightHandFeatureStdDev.at(rightWindow - 2) > grab_std_dev_factor ) {
@@ -196,7 +197,7 @@ void checkGrab() {
 void checkRelease() {
 	int leftWindow = leftHandFeatureStdDev.size();
 	int rightWindow = rightHandFeatureStdDev.size();
-	if (leftWindow > 3) {
+	if (leftWindow > 2) {
 		//check that standard deviation has been decreasing:
 		if (leftHandFeatureStdDev.at(leftWindow - 1) - leftHandFeatureStdDev.at(leftWindow - 2) > grab_std_dev_factor ) {
 			if (leftHandFeatureStdDev.at(leftWindow - 2) - leftHandFeatureStdDev.at(leftWindow - 3) > grab_std_dev_factor ) {
@@ -205,7 +206,7 @@ void checkRelease() {
 			}
 		}
 	}
-	if (rightWindow > 3) {
+	if (rightWindow > 2) {
 		//check that standard deviation has been decreasing:
 		if (rightHandFeatureStdDev.at(rightWindow - 1) - rightHandFeatureStdDev.at(rightWindow - 2) > grab_std_dev_factor ) {
 			if (rightHandFeatureStdDev.at(rightWindow - 2) - rightHandFeatureStdDev.at(rightWindow - 3) > grab_std_dev_factor ) {
@@ -314,7 +315,17 @@ void initiateCamera(){
 	unsigned int totalCameras;
 	busManager.GetNumOfCameras(&totalCameras);
 	printf("Found %d cameras on the bus.\n",totalCameras);
-	busManager.GetCameraFromIndex(0, &guid);
+    Format7ImageSettings fmt7ImageSettings;
+    fmt7ImageSettings.mode = MODE_0;
+    fmt7ImageSettings.offsetX = 92;
+    fmt7ImageSettings.offsetY = 20;
+    fmt7ImageSettings.width = imageSize.width;
+    fmt7ImageSettings.height = imageSize.height;
+    fmt7ImageSettings.pixelFormat = PIXEL_FORMAT_MONO8;
+    Format7PacketInfo fmt7PacketInfo;
+    bool valid;
+
+    busManager.GetCameraFromIndex(0, &guid);
 	Error pgError;
 	pgError = pgrCam.Connect(&guid);
 	if (pgError != PGRERROR_OK){
@@ -322,13 +333,40 @@ void initiateCamera(){
 		use_pgr_camera = false;
 		return;
 	}
-	pgrCam.StartCapture();
+
+    //Validate format7 settings
+    pgError = pgrCam.ValidateFormat7Settings(
+        &fmt7ImageSettings,
+        &valid,
+        &fmt7PacketInfo );
+    if (pgError != PGRERROR_OK)
+    {
+        cout << "ERROR! in validating format7 settings" << endl;
+    }
+
+    if ( !valid )
+    {
+        // Settings are not valid
+		cout << "Format7 settings are not valid" << endl;
+    }
+
+    // Set the settings to the camera
+    pgError = pgrCam.SetFormat7Configuration(
+        &fmt7ImageSettings,
+        fmt7PacketInfo.recommendedBytesPerPacket );
+    if (pgError != PGRERROR_OK)
+    {
+        cout << "ERROR setting format7" << endl;
+    } else {
+		pgrCam.StartCapture();
+    }
+
 	if (pgError != PGRERROR_OK){
-		printf("Error in starting the camera capture.\n");
+		cout << "Error in starting the camera capture" << endl;
 		use_pgr_camera = false;
 		return;
 	}
-	cout << "pgr camera initialized." << endl;
+	cout << "pgr camera successfully initialized." << endl;
 }
 
 /**
@@ -358,6 +396,12 @@ void processKey(char key) {
 			break;
 		case 'a':
 			break;
+		case 's':
+			save_input_video = !save_input_video;
+			break;
+		case 'r':
+			save_output_video = !save_output_video;
+			break;
 		default:
 			break;
 	}
@@ -375,9 +419,8 @@ void findGoodFeatures(Mat frame1, Mat frame2) {
  * a video file from predefined path
  * */
 void startVideo(){
+	double fps = 8;
 	VideoCapture video("../../Desktop/grab_and_release_data/Grab_Release_Mar15.avi");
-	double fps = 30;
-	int totalFrames = 0;
 
 	//Contour detection structures
 	vector<vector<cv::Point> > contours;
@@ -392,7 +435,9 @@ void startVideo(){
 			cout << "Failed to open video file" << endl;
 			return;
 		}
+		fps = video.get(CV_CAP_PROP_FPS);
 	}
+
 
 	//Preparing for main video loop
 	Mat previousFrame;
@@ -401,16 +446,26 @@ void startVideo(){
 	Mat binaryImg; //binary image for finding contours of the hand
 	Mat tmpColor;
 
+	//Prepare for recording video
+	VideoWriter sourceWriter = VideoWriter("../../../Desktop/grab_and_release_data/source.avi", CV_FOURCC('D', 'I', 'V', '5'), fps, imageSize);
+	VideoWriter resultWriter = VideoWriter("../../../Desktop/grab_and_release_data/result.avi", CV_FOURCC('D', 'I', 'V', '5'), fps, imageSize);
+
 	char key = 'a';
 	int frame_count = 0;
 	while(key != 'q') {
 		if(use_pgr_camera){
 			currentFrame = grabImage();
+			if(save_input_video) {
+				if (sourceWriter.isOpened()) {
+					cvtColor(currentFrame, tmpColor, CV_GRAY2RGB);
+					sourceWriter << tmpColor;
+				}
+			}
 		} else{
-			video >> tmpColor;
-			cvtColor(tmpColor, currentFrame, CV_RGB2GRAY);
+			//This is a video file source, no need to save again
 		}
-		imshow("Source", currentFrame);
+
+		//imshow("Source", currentFrame);
 
 		//do all the pre-processing
 		process(currentFrame);
@@ -432,7 +487,7 @@ void startVideo(){
 		threshold(binaryImg, binaryImg, lower_threshold, 255, THRESH_BINARY);
 		medianBlur(binaryImg, binaryImg, 21);
 		//adaptiveThreshold(binaryImg, binaryImg, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 3, 10); //adaptive thresholding not works so well here
-		imshow("Binary", binaryImg);
+		//imshow("Binary", binaryImg);
 		findContours(binaryImg, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		//findContours( binaryImg, contours, RETR_TREE, CV_CHAIN_APPROX_SIMPLE );
 
@@ -460,11 +515,19 @@ void startVideo(){
 
 		}
 
-		imshow("Tracked", trackingResults);
-		if(save_input_video){
+		if(save_output_video){
 			//TODO: save video
+			if (resultWriter.isOpened()) {
+				resultWriter << trackingResults;
+				putText(trackingResults, "Recording Results ... ", Point(40,120), FONT_HERSHEY_COMPLEX, 1, RED, 3, 8, false);
+			}
+		}
+		if(save_input_video){
+			//actually saving is done before pre processing above
+			putText(trackingResults, "Recording Source ... ", Point(40,40), FONT_HERSHEY_COMPLEX, 1, YELLOW, 3, 8, false);
 		}
 
+		imshow("Tracked", trackingResults);
 		previousFrame = currentFrame;
 		currentCorners = previousCorners;
 	}

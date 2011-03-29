@@ -19,6 +19,8 @@
 //=============================================================================
 
 #include "FlyCapture2.h"
+#include <stdio.h>
+#include <termios.h>
 
 using namespace FlyCapture2;
 
@@ -146,9 +148,14 @@ int RunCamera( PGRGuid guid )
     }
 
     Image rawImage; 
-    printf( "Grab %d images and Save as AVI file: %s ... \n", k_numImages, AVIFileName ); 
-    for ( int imageCnt=0; imageCnt < k_numImages; imageCnt++ )
-    {                
+    char key = 'a';
+    printf( "Grabbing images and Save as AVI file: %s ... \n", AVIFileName );
+    //for ( int imageCnt=0; imageCnt < k_numImages; imageCnt++ )
+    int imageCnt=0;
+    while(key != 'q')
+    {
+    	imageCnt++;
+    	key = getch();
         // Retrieve an image
         error = cam.RetrieveBuffer( &rawImage );
         if (error != PGRERROR_OK)
