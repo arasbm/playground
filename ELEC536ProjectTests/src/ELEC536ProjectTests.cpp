@@ -40,6 +40,7 @@ void findGoodFeatures(Mat frame1, Mat frame2);
 void assignFeaturesToHands();
 void drawFeatures(Mat img);
 void drawMeanAndStdDev(Mat img);
+void featureDepthExtract(const Mat img);
 float getDistance(const Point2f a, const Point2f b);
 int numberOfHands();
 Mat grabImage();
@@ -90,8 +91,9 @@ vector<float> rightHandFeatureStdDev;
 
 /** goodFeaturesToTrack structure and settings **/
 vector<Point2f> previousCorners;
-vector<Point2f> currentCorners;
+vector<Point2f> currentCorners; //Centre point of feature or corner rectangles
 vector<uchar> flowStatus;
+vector<float> featureDepth;
 vector<uchar> leftRightStatus; // 0=None, 1=Left, 2=Right
 vector<float> flowError;
 TermCriteria termCriteria = TermCriteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.3 );
@@ -106,7 +108,7 @@ int main(int argc, char* argv[]) {
 	cout << "Starting ELEC536 Grab and Release Project" << endl;
 //	cvNamedWindow( "Source", CV_WINDOW_AUTOSIZE ); 		//monochrome source
 //	cvNamedWindow( "Processed", CV_WINDOW_AUTOSIZE ); 	//monochrome image after pre-processing
-	cvNamedWindow( "Tracked", CV_WINDOW_FULLSCREEN ); 	//Colour with pretty drawings showing tracking results
+	cvNamedWindow( "Tracked", CV_WINDOW_AUTOSIZE ); 	//Colour with pretty drawings showing tracking results
 
 	//Mat result; //working image for most parts
 	//Mat tmp;
@@ -465,7 +467,7 @@ void startVideo(){
 			//This is a video file source, no need to save again
 		}
 
-		//imshow("Source", currentFrame);
+		imshow("Source", currentFrame);
 
 		//do all the pre-processing
 		process(currentFrame);
@@ -487,7 +489,7 @@ void startVideo(){
 		threshold(binaryImg, binaryImg, lower_threshold, 255, THRESH_BINARY);
 		medianBlur(binaryImg, binaryImg, 21);
 		//adaptiveThreshold(binaryImg, binaryImg, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 3, 10); //adaptive thresholding not works so well here
-		//imshow("Binary", binaryImg);
+		imshow("Binary", binaryImg);
 		findContours(binaryImg, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 		//findContours( binaryImg, contours, RETR_TREE, CV_CHAIN_APPROX_SIMPLE );
 
@@ -507,7 +509,11 @@ void startVideo(){
 			findGoodFeatures(previousFrame, currentFrame);
 			drawHandTrace(trackingResults);
 			assignFeaturesToHands();
-			drawFeatures(trackingResults);
+			//featureDepthExtract(trackingResults);
+
+			//drawFeatures(trackingResults);
+			//drawFeatureDepth(trackingResults);
+
 			meanAndStdDevExtract();
 			drawMeanAndStdDev(trackingResults);
 			checkGrab();
@@ -621,9 +627,11 @@ void drawFeatures(Mat img) {
 		if(leftRightStatus[i] == 1) {
 			// Left hand
 			rectangle(img, Point(currentCorners[i].x - blockSize/2, currentCorners[i].y - blockSize/2), Point(currentCorners[i].x + blockSize/2, currentCorners[i].y + blockSize/2), ORANGE);
+			circle(img, Point(currentCorners[i].x, currentCorners[i].y), featureDepth[i] + 1, ORANGE);
 		} else if(leftRightStatus[i] == 2) {
 			// Right hand
 			rectangle(img, Point(currentCorners[i].x - blockSize/2, currentCorners[i].y - blockSize/2), Point(currentCorners[i].x + blockSize/2, currentCorners[i].y + blockSize/2), BLUE);
+			circle(img, Point(currentCorners[i].x, currentCorners[i].y), featureDepth[i] + 1, BLUE);
 		} else {
 			// None
 			rectangle(img, Point(currentCorners[i].x - blockSize/2, currentCorners[i].y - blockSize/2), Point(currentCorners[i].x + blockSize/2, currentCorners[i].y + blockSize/2), PINK);
@@ -726,6 +734,29 @@ void meanAndStdDevExtract() {
 	}
 	if(rightCount > 0) {
 		addFeatureMeanStdDev(false, rightMean, rightStdDev);
+	}
+}
+
+/**
+ * Calculate the depth of each feature based on the blurriness of its window
+ * */
+void featureDepthExtract(const Mat img) {
+	Mat feature;
+	Rect rect;
+	Scalar stdDev;
+	Scalar mean;
+	featureDepth.clear();
+	for(int i = 0; i < maxCorners; i++) {
+		if(leftRightStatus[i] == 1 || leftRightStatus[i] == 2) {
+			//left or right hand feature
+			rect = Rect(currentCorners[i].x - blockSize/2, currentCorners[i].y - blockSize/2, blockSize, blockSize);
+			feature = Mat(img, rect);
+			meanStdDev(feature, mean, stdDev);
+			featureDepth.push_back(stdDev.val[0]);
+		} else {
+			//Doesnt matter if the feature is not assigned to a hand, so set to -1
+			featureDepth.push_back(-1);
+		}
 	}
 }
 
