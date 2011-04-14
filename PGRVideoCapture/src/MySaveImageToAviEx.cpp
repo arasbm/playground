@@ -155,7 +155,7 @@ int RunCamera( PGRGuid guid )
     while(key != 'q')
     {
     	imageCnt++;
-    	key = getch();
+    	//key = getch();
         // Retrieve an image
         error = cam.RetrieveBuffer( &rawImage );
         if (error != PGRERROR_OK)
