@@ -511,7 +511,7 @@ void startVideo(){
 			assignFeaturesToHands();
 			//featureDepthExtract(trackingResults);
 
-			//drawFeatures(trackingResults);
+			drawFeatures(trackingResults);
 			//drawFeatureDepth(trackingResults);
 
 			meanAndStdDevExtract();
@@ -627,11 +627,11 @@ void drawFeatures(Mat img) {
 		if(leftRightStatus[i] == 1) {
 			// Left hand
 			rectangle(img, Point(currentCorners[i].x - blockSize/2, currentCorners[i].y - blockSize/2), Point(currentCorners[i].x + blockSize/2, currentCorners[i].y + blockSize/2), ORANGE);
-			circle(img, Point(currentCorners[i].x, currentCorners[i].y), featureDepth[i] + 1, ORANGE);
+			//circle(img, Point(currentCorners[i].x, currentCorners[i].y), featureDepth[i] + 1, ORANGE);
 		} else if(leftRightStatus[i] == 2) {
 			// Right hand
 			rectangle(img, Point(currentCorners[i].x - blockSize/2, currentCorners[i].y - blockSize/2), Point(currentCorners[i].x + blockSize/2, currentCorners[i].y + blockSize/2), BLUE);
-			circle(img, Point(currentCorners[i].x, currentCorners[i].y), featureDepth[i] + 1, BLUE);
+			//circle(img, Point(currentCorners[i].x, currentCorners[i].y), featureDepth[i] + 1, BLUE);
 		} else {
 			// None
 			rectangle(img, Point(currentCorners[i].x - blockSize/2, currentCorners[i].y - blockSize/2), Point(currentCorners[i].x + blockSize/2, currentCorners[i].y + blockSize/2), PINK);
